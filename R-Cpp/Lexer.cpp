@@ -76,7 +76,7 @@ Token Lexer::nextNumber()
 Token Lexer::skipComment()
 {
     // comment: //...
-    while (lastChar_ != '\n' || lastChar_ != '\r')
+    while (lastChar_ != '\n' && lastChar_ != '\r')
     {
         getNextChar();
         if (lastChar_ == EOF) return Token(TokenType::Eof);

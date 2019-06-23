@@ -41,7 +41,7 @@ enum class TokenType
     DoubleQuote='"',
     Question='?',
     Unknown,
-    Eof=EOF,
+    Eof=EOF
 
 };
 
