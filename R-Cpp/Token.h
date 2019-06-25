@@ -42,7 +42,13 @@ enum class TokenType
     Question='?',
     Unknown,
     Eof=EOF
+};
 
+struct TokenHash
+{
+    int operator()(TokenType t) {
+        return std::hash<int>{}(static_cast<int>(t));
+    }
 };
 
 struct Token
