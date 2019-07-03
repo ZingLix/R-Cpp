@@ -9,6 +9,7 @@ enum class TokenType
     Export,
     Namespace,
     Class,
+    Return,
     Identifier,
     Integer,
     Float,

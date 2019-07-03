@@ -46,6 +46,8 @@ Token Lexer::nextIdentifier()
         return Token(TokenType::Namespace);
     if (content == "class")
         return Token(TokenType::Class);
+    if (content == "return")
+        return Token(TokenType::Return);
     return Token(TokenType::Identifier, content);
 }
 

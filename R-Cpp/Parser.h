@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <map>
 #include <iostream>
+#include <set>
 
 class Parser
 {
@@ -35,8 +36,12 @@ public:
     std::unique_ptr<ExprAST> ParseIdentifierExpr() {
         auto idname = cur_token_.content;
         getNextToken();
+        if(cur_token_.type==TokenType::Identifier) {
+            return ParseVaribleDefinition(idname);
+        }
         if(cur_token_.type!=TokenType::lParenthesis) {
-            return std::make_unique<VaribleExprAST>(idname);
+            auto tmp = std::make_unique<VaribleExprAST>(idname);
+            return tmp;
         }
         getNextToken();
         std::vector<std::unique_ptr<ExprAST>> args;
@@ -56,26 +61,49 @@ public:
         return std::make_unique<CallExprAST>(idname, std::move(args));
     }
 
-    std::unique_ptr<ExprAST> ParsePrimary() {
-
-        switch (cur_token_.type) {
-        case TokenType::Identifier:
-            return ParseIdentifierExpr();
-        case TokenType::Integer:
-            return ParseIntegerExpr();
-        case TokenType::Float:
-            return ParseFloatExpr();
-        case TokenType::lParenthesis:
-            return ParseParenExpr();
-        default:
-            return LogError("Unexpected token.");
+    std::unique_ptr<ExprAST> ParseVaribleDefinition(const std::string& type_name) {
+        auto varname = cur_token_.content;
+        getNextToken();
+        if(cur_token_.type==TokenType::Equal) {
+            getNextToken();
+            auto E = ParseExpression();
+            return std::make_unique<VaribleDefAST>(type_name, varname, std::move(E));
         }
-
+        if(cur_token_.type==TokenType::Semicolon) {
+            return std::make_unique<VaribleDefAST>(type_name, varname);
+        }
+        return LogError("Expected expression or ;.");
     }
+
+    std::unique_ptr<ExprAST> ParseReturnExpr() {
+        getNextToken();
+        auto retval = ParseExpression();
+        if (retval!=nullptr) return std::make_unique<ReturnAST>(std::move(retval));
+        return LogError("Invalid return value.");
+    }
+
+    std::unique_ptr<ExprAST> ParsePrimary() {
+        if(cur_token_.type==TokenType::Return) {
+            return ParseReturnExpr();
+        }
+        if(cur_token_.type==TokenType::Identifier) {
+            return ParseIdentifierExpr();
+        }
+        if(cur_token_.type==TokenType::Integer) {
+            return ParseIntegerExpr();
+        }
+        if(cur_token_.type==TokenType::Float) {
+            return ParseFloatExpr();
+        }
+        if(cur_token_.type==TokenType::lParenthesis) {
+            return ParseParenExpr();
+        }
+        return LogError("Unexpected token.");
+    }
+   
     int GetTokPrecedence() {
         auto it = BinopPrecedence.find(cur_token_.type);
         if (it == BinopPrecedence.end()) return -1;
-
         // Make sure it's a declared binop.
         int TokPrec = it->second;
         if (TokPrec <= 0) return -1;
@@ -86,7 +114,6 @@ public:
         auto LHS = ParsePrimary();
         if (!LHS)
             return nullptr;
-
         return ParseBinOpRHS(0, std::move(LHS));
     }
 
@@ -123,9 +150,11 @@ public:
             return LogErrorP("Expected '(' in prototype");
 
         // Read the list of argument names.
-        std::vector<std::string> ArgNames;
+        std::vector<std::pair<std::string, std::string>> ArgNames;
         while (getNextToken().type == TokenType::Identifier){
-            ArgNames.push_back(cur_token_.content);
+            auto type_name = cur_token_.content;
+            getNextToken();
+            ArgNames.emplace_back(type_name,cur_token_.content);
             getNextToken();
             if(cur_token_.type==TokenType::rParenthesis) break;
             if (cur_token_.type != TokenType::Comma)
@@ -145,37 +174,52 @@ public:
         getNextToken();  // eat fn.
         auto Proto = ParsePrototype();
         if (!Proto) return nullptr;
-
-        if (auto E = ParseExpression())
-            return std::make_unique<FunctionAST>(std::move(Proto), std::move(E));
-        return nullptr;
-    }
-
-    std::unique_ptr<FunctionAST> ParseTopLevelExpr() {
-        if (auto E = ParseExpression()) {
-            // Make an anonymous proto.
-            auto Proto = std::make_unique<PrototypeAST>("", std::vector<std::string>());
-            return std::make_unique<FunctionAST>(std::move(Proto), std::move(E));
+        if (cur_token_.type != TokenType::lBrace) {
+            std::cout << "Expected {."<<std::endl;
+            return nullptr;
         }
+        getNextToken(); //eat {
+        std::vector<std::unique_ptr<ExprAST>> body;
+        while (auto E=ParseExpression()) {
+            if (E != nullptr) body.emplace_back(std::move(E));
+            getNextToken(); // eat ;
+       //     getNextToken();
+            if (cur_token_.type == TokenType::rBrace)
+                return std::make_unique<FunctionAST>(std::move(Proto), std::move(body));
+        }
+        std::cout << "Expected }." << std::endl;
         return nullptr;
     }
+
+    //std::unique_ptr<FunctionAST> ParseTopLevelExpr() {
+    //    if (auto E = ParseExpression()) {
+    //        // Make an anonymous proto.
+    //        auto Proto = std::make_unique<PrototypeAST>("", std::vector<std::string>());
+    //        return std::make_unique<FunctionAST>(std::move(Proto), std::move(E));
+    //    }
+    //    return nullptr;
+    //}
+    
     void HandleDefinition() {
-        if (ParseDefinition()) {
+        auto func = ParseDefinition();
+        if (func!=nullptr) {
             fprintf(stderr, "Parsed a function definition.\n");
+            expr_.emplace_back(std::move(func));
         } else {
             // Skip token for error recovery.
             getNextToken();
         }
     }
-    void HandleTopLevelExpression() {
-        // Evaluate a top-level expression into an anonymous function.
-        if (ParseTopLevelExpr()) {
-            fprintf(stderr, "Parsed a top-level expr\n");
-        } else {
-            // Skip token for error recovery.
-            getNextToken();
-        }
-    }
+    
+    //void HandleTopLevelExpression() {
+    //    // Evaluate a top-level expression into an anonymous function.
+    //    if (ParseTopLevelExpr()) {
+    //        fprintf(stderr, "Parsed a top-level expr\n");
+    //    } else {
+    //        // Skip token for error recovery.
+    //        getNextToken();
+    //    }
+    //}
 
     void MainLoop() {
         while (1) {
@@ -189,12 +233,17 @@ public:
                 HandleDefinition();
                 break;
             default:
-                HandleTopLevelExpression();
+                getNextToken();
+            //    HandleTopLevelExpression();
                 break;
             }
         }
-
     }
+
+    auto& AST() {
+        return expr_;
+    }
+
 private:
     std::unique_ptr<ExprAST> LogError(const std::string& errmsg) {
         std::cout << errmsg << std::endl;
@@ -221,4 +270,5 @@ private:
     };
     Lexer lexer_;
     Token cur_token_;
+    std::vector<std::unique_ptr<FunctionAST>> expr_;
 };
