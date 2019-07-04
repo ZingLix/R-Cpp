@@ -3,11 +3,13 @@
 
 std::unique_ptr<ExprAST> Parser::ParseIntegerExpr() {
     auto res = std::make_unique<IntegerExprAST>(std::stoi(cur_token_.content));
+    getNextToken();
     return res;
 }
 
 std::unique_ptr<ExprAST> Parser::ParseFloatExpr() {
     auto res = std::make_unique<FloatExprAST>(std::stof(cur_token_.content));
+    getNextToken();
     return res;
 }
 
@@ -88,6 +90,7 @@ std::unique_ptr<ExprAST> Parser::ParseReturnExpr() {
     getNextToken();
     auto retval = ParseExpression();
     if (retval != nullptr) return std::make_unique<ReturnAST>(std::move(retval));
+    getNextToken();
     return LogError("Invalid return value.");
 }
 
@@ -186,6 +189,7 @@ std::unique_ptr<BlockExprAST> Parser::ParseBlock() {
     while (cur_token_.type != TokenType::rBrace && cur_token_.type != TokenType::Eof) {
         auto E = ParseExpression();
         if (E != nullptr) body.emplace_back(std::move(E));
+        if(cur_token_.type==TokenType::Semicolon)
         getNextToken(); // eat ;
     }
     if (cur_token_.type != TokenType::rBrace) {

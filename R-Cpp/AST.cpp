@@ -166,28 +166,28 @@ llvm::Value* IfExprAST::generateCode(CodeGenerator& cg) {
     BasicBlock* ThenBB = BasicBlock::Create(cg.context(), "then", F);
     BasicBlock* ElseBB = BasicBlock::Create(cg.context(), "else");
     BasicBlock* MergeBB = BasicBlock::Create(cg.context(), "ifcont");
-    builder.CreateCondBr(cond, ThenBB, ElseBB);
+    builder.CreateCondBr(cond, ThenBB,  Else==nullptr? MergeBB:ElseBB);
     builder.SetInsertPoint(ThenBB);
     auto thenV= Then->generateCode(cg);
     builder.CreateBr(MergeBB);
     ThenBB = builder.GetInsertBlock();
-    Value* elseV;
+    Value* elseV = nullptr;
     if(Else!=nullptr) {
         F->getBasicBlockList().push_back(ElseBB);
         builder.SetInsertPoint(ElseBB);
-        
+        if (Else != nullptr) {
             elseV = Else->generateCode(cg);
             if (!elseV) return nullptr;
-
+        }
         builder.CreateBr(MergeBB);
         ElseBB = builder.GetInsertBlock();
     }
     F->getBasicBlockList().push_back(MergeBB);
     builder.SetInsertPoint(MergeBB);
-    PHINode* PN = builder.CreatePHI(Type::getDoubleTy(cg.context()), 2, "ifcond");
-  //  PN->addIncoming(thenV, ThenBB);
-  //  if(Else!=nullptr)
-  //      PN->addIncoming(elseV, ElseBB);
+    PHINode* PN = builder.CreatePHI(get_builtin_type("i32",cg), 2, "ifcond");
+    PN->addIncoming(thenV, ThenBB);
+    if(Else!=nullptr)
+        PN->addIncoming(elseV, ElseBB);
     return PN;
     
 }
