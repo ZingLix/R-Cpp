@@ -32,6 +32,9 @@ std::unique_ptr<ExprAST> Parser::ParsePrimary() {
     if (cur_token_.type == TokenType::If) {
         return ParseIfExpr();
     }
+    if(cur_token_.type==TokenType::For) {
+        return ParseForExpr();
+    }
     return LogError("Unexpected token.");
 }
 
@@ -52,7 +55,7 @@ std::unique_ptr<ExprAST> Parser::ParseIdentifierExpr() {
         return ParseVaribleDefinition(idname);
     }
     if (cur_token_.type != TokenType::lParenthesis) {
-        return std::make_unique<VaribleExprAST>(idname);;
+        return std::make_unique<VariableExprAST>(idname);;
     }
     getNextToken();
     std::vector<std::unique_ptr<ExprAST>> args;
@@ -72,16 +75,45 @@ std::unique_ptr<ExprAST> Parser::ParseIdentifierExpr() {
     return std::make_unique<CallExprAST>(idname, std::move(args));
 }
 
+std::unique_ptr<ExprAST> Parser::ParseForExpr() {
+    getNextToken(); //eat for
+    if(cur_token_.type!=TokenType::lParenthesis) {
+        return LogError("Expected (.");
+    }
+    getNextToken(); //eat (
+    auto start = ParseExpression();
+    if(cur_token_.type!=TokenType::Semicolon) {
+        return LogError("Expected ;");
+    }
+    getNextToken(); //eat ;
+    auto cond = ParseExpression();
+    if (cur_token_.type != TokenType::Semicolon) {
+        return LogError("Expected ;");
+    }
+    getNextToken(); //eat ;
+    auto end = ParseExpression();
+    if (cur_token_.type != TokenType::rParenthesis) {
+        return LogError("Expected )");
+    }
+    getNextToken(); //eat )
+    if(cur_token_.type!=TokenType::lBrace) {
+        return LogError("Expected {");
+    }
+    auto body = ParseBlock();
+    return std::make_unique<ForExprAST>(std::move(start), std::move(cond), std::move(end), std::move(body));
+}
+
+
 std::unique_ptr<ExprAST> Parser::ParseVaribleDefinition(const std::string& type_name) {
     auto varname = cur_token_.content;
     getNextToken();
     if (cur_token_.type == TokenType::Equal) {
         getNextToken();
         auto E = ParseExpression();
-        return std::make_unique<VaribleDefAST>(type_name, varname, std::move(E));
+        return std::make_unique<VariableDefAST>(type_name, varname, std::move(E));
     }
     if (cur_token_.type == TokenType::Semicolon) {
-        return std::make_unique<VaribleDefAST>(type_name, varname);
+        return std::make_unique<VariableDefAST>(type_name, varname);
     }
     return LogError("Expected expression or ;.");
 }

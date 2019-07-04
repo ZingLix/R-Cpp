@@ -33,10 +33,10 @@ private:
     float val;
 };
 
-class VaribleExprAST:public ExprAST
+class VariableExprAST:public ExprAST
 {
 public:
-    VaribleExprAST(const std::string& n);
+    VariableExprAST(const std::string& n);
     llvm::Value* generateCode(CodeGenerator& cg) override;
     std::string getName() { return name; }
 private:
@@ -81,12 +81,12 @@ private:
     //std::unique_ptr<BlockExprAST> Else;
 };
 
-class VaribleDefAST:public ExprAST
+class VariableDefAST:public ExprAST
 {
 public:
-    VaribleDefAST(const std::string& type_name, const std::string& var_name, std::unique_ptr<ExprAST> init_value);
+    VariableDefAST(const std::string& type_name, const std::string& var_name, std::unique_ptr<ExprAST> init_value);
 
-    VaribleDefAST(const std::string& type_name, const std::string& var_name);
+    VariableDefAST(const std::string& type_name, const std::string& var_name);
     llvm::Value* generateCode(CodeGenerator& cg) override;
 
 private:
@@ -116,7 +116,20 @@ private:
     std::unique_ptr<ExprAST> LHS, RHS;
 };
 
+class ForExprAST:public ExprAST
+{
+public:
+    ForExprAST(std::unique_ptr<ExprAST> start, std::unique_ptr<ExprAST> cond,
+        std::unique_ptr<ExprAST> end, std::unique_ptr<BlockExprAST> body)
+        :Start(std::move(start)),Cond(std::move(cond)),
+         End(std::move(end)),Body(std::move(body))
+    { }
+    llvm::Value* generateCode(CodeGenerator& cg) override;
 
+private:
+    std::unique_ptr<ExprAST> Start, Cond, End;
+    std::unique_ptr<BlockExprAST> Body;
+};
 
 class CallExprAST:public ExprAST
 {

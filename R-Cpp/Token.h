@@ -12,6 +12,7 @@ enum class TokenType
     Return,
     If,
     Else,
+    For,
     Identifier,
     Integer,
     Float,

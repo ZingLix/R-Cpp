@@ -20,6 +20,7 @@ public:
     std::unique_ptr<ExprAST> ParseReturnExpr();
     std::unique_ptr<ExprAST> ParseExpression();
     std::unique_ptr<ExprAST> ParseIfExpr();
+    std::unique_ptr<ExprAST> ParseForExpr();
     std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec,
                                            std::unique_ptr<ExprAST> LHS);
     std::unique_ptr<PrototypeAST> ParsePrototype();

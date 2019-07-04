@@ -52,6 +52,8 @@ Token Lexer::nextIdentifier()
         return Token(TokenType::If);
     if (content == "else")
         return Token(TokenType::Else);
+    if (content == "for")
+        return Token(TokenType::For);
     return Token(TokenType::Identifier, content);
 }
 

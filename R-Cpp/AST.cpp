@@ -42,27 +42,27 @@ Value* FloatExprAST::generateCode(CodeGenerator& cg) {
     return ConstantFP::get(cg.context(), APFloat(val));
 }
 
-VaribleExprAST::VaribleExprAST(const std::string& n): name(n) {
+VariableExprAST::VariableExprAST(const std::string& n): name(n) {
 }
 
-llvm::Value* VaribleExprAST::generateCode(CodeGenerator& cg) {
+llvm::Value* VariableExprAST::generateCode(CodeGenerator& cg) {
     auto v = cg.getValue(name);
     if (v == nullptr) std::cout << "Unknown variable name." << std::endl;
     return cg.builder().CreateLoad(v,name.c_str());
 }
 
-VaribleDefAST::VaribleDefAST(const std::string& type_name, const std::string& var_name,
+VariableDefAST::VariableDefAST(const std::string& type_name, const std::string& var_name,
                              std::unique_ptr<ExprAST> init_value)
     : typename_(type_name), varname_(var_name),init_value_(std::move(init_value)) 
 {
 }
 
-VaribleDefAST::VaribleDefAST(const std::string& type_name, const std::string& var_name)
+VariableDefAST::VariableDefAST(const std::string& type_name, const std::string& var_name)
     :typename_(type_name),varname_(var_name),init_value_(std::move(nullptr)) 
 {
 }
 
-llvm::Value* VaribleDefAST::generateCode(CodeGenerator& cg) {
+llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
     auto F = cg.builder().GetInsertBlock()->getParent();
     Value* InitVal;
     if(!init_value_) {
@@ -84,7 +84,7 @@ BinaryExprAST::BinaryExprAST(TokenType op, std::unique_ptr<ExprAST> lhs,
 
 llvm::Value* BinaryExprAST::generateCode(CodeGenerator& cg) {
     if(Op==TokenType::Equal) {
-        VaribleExprAST* LHSE = dynamic_cast<VaribleExprAST*>(LHS.get());
+        VariableExprAST* LHSE = dynamic_cast<VariableExprAST*>(LHS.get());
         if (!LHSE)
             return LogError("destination of '=' must be a variable");
         auto val = RHS->generateCode(cg);
@@ -140,6 +140,29 @@ Value* ReturnAST::generateCode(CodeGenerator& cg) {
     return nullptr;
 }
 
+llvm::Value* ForExprAST::generateCode(CodeGenerator& cg) {
+    auto startval = Start->generateCode(cg);
+    if (!startval) return nullptr;
+    auto F = cg.builder().GetInsertBlock()->getParent();
+
+
+    auto PreHeaderBB = BasicBlock::Create(cg.context(), "cond", F);
+    cg.builder().CreateBr(PreHeaderBB);
+    cg.builder().SetInsertPoint(PreHeaderBB);
+    auto EndCond = Cond->generateCode(cg);
+    EndCond = cg.builder().CreateICmpNE(EndCond,
+        ConstantInt::get(get_builtin_type("bool", cg), APInt(1, 0)), "loopcond");
+    auto LoopBB = BasicBlock::Create(cg.context(), "loop", F);
+    auto AfterBB = BasicBlock::Create(cg.context(), "afterloop", F);
+    cg.builder().CreateCondBr(EndCond, LoopBB, AfterBB);
+    cg.builder().SetInsertPoint(LoopBB);
+    Body->generateCode(cg);
+    End->generateCode(cg);
+    cg.builder().CreateBr(PreHeaderBB);
+    cg.builder().SetInsertPoint(AfterBB);
+    return Constant::getNullValue(Type::getDoubleTy(cg.context()));
+}
+
 CallExprAST::
 CallExprAST(const std::string& callee, std::vector<std::unique_ptr<ExprAST>> args)
     : Callee(callee),Args(std::move(args)) 
@@ -184,11 +207,11 @@ llvm::Value* IfExprAST::generateCode(CodeGenerator& cg) {
     }
     F->getBasicBlockList().push_back(MergeBB);
     builder.SetInsertPoint(MergeBB);
-    PHINode* PN = builder.CreatePHI(get_builtin_type("i32",cg), 2, "ifcond");
-    PN->addIncoming(thenV, ThenBB);
-    if(Else!=nullptr)
-        PN->addIncoming(elseV, ElseBB);
-    return PN;
+    //PHINode* PN = builder.CreatePHI(get_builtin_type("i32",cg), 2, "ifcond");
+   // PN->addIncoming(thenV, ThenBB);
+    //if(Else!=nullptr)
+    //    PN->addIncoming(elseV, ElseBB);
+    return F;
     
 }
 
@@ -215,7 +238,7 @@ llvm::Function* PrototypeAST::generateCode(CodeGenerator& cg) {
         else if (t.first == "float") ArgT.push_back(Type::getFloatTy(cg.context()));
         else return LogErrorF("Unknown type.");
     }
-    auto FT = FunctionType::get(Type::getDoubleTy(cg.context()), ArgT, false);
+    auto FT = FunctionType::get(get_builtin_type("i32",cg), ArgT, false);
     auto F = Function::Create(FT, Function::ExternalLinkage, Name, cg.getModule());
     int i = 0;
     for (auto& arg : F->args())
@@ -237,7 +260,9 @@ llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
         cg.setValue(Arg.getName(), alloca);
     }
     Body->generateCode(cg);
-    verifyFunction(*F);
-    cg.FPM()->run(*F);
+    if(verifyFunction(*F,&errs())) {
+        std::cout << "something bad...\n";
+    }
+    //cg.FPM()->run(*F);
     return F;
 }
