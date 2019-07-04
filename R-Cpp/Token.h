@@ -10,6 +10,8 @@ enum class TokenType
     Namespace,
     Class,
     Return,
+    If,
+    Else,
     Identifier,
     Integer,
     Float,

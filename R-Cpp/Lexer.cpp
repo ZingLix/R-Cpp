@@ -48,6 +48,10 @@ Token Lexer::nextIdentifier()
         return Token(TokenType::Class);
     if (content == "return")
         return Token(TokenType::Return);
+    if (content == "if")
+        return Token(TokenType::If);
+    if (content == "else")
+        return Token(TokenType::Else);
     return Token(TokenType::Identifier, content);
 }
 

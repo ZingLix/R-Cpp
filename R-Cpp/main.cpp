@@ -3,9 +3,13 @@
 
 using namespace std;
 
-int main()
+int main(int argc,char **argv)
 {
-    Parser l("/home/zinglix/example.txt");
+    if(argc==1) {
+        cout << "Please input the source file." << endl;
+        return -1;
+    }
+    Parser l(argv[1]);
     l.MainLoop();
     CodeGenerator cg;
     for(auto& expr:l.AST()) {
