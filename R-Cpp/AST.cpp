@@ -180,6 +180,11 @@ llvm::Value* BlockExprAST::generateCode(CodeGenerator& cg) {
     return ret;
 }
 
+std::vector<std::unique_ptr<ExprAST>>& BlockExprAST::instructions()
+{
+    return expr_;
+}
+
 llvm::Value* IfExprAST::generateCode(CodeGenerator& cg) {
     auto cond = Cond->generateCode(cg);
     if (!cond) return nullptr;
@@ -190,19 +195,25 @@ llvm::Value* IfExprAST::generateCode(CodeGenerator& cg) {
     BasicBlock* ElseBB = BasicBlock::Create(cg.context(), "else");
     BasicBlock* MergeBB = BasicBlock::Create(cg.context(), "ifcont");
     builder.CreateCondBr(cond, ThenBB,  Else==nullptr? MergeBB:ElseBB);
+    auto genCode = [&](std::unique_ptr<BlockExprAST>& block) {
+        bool anotherTerminator = false;
+        for (auto& expr : block->instructions()) {
+            auto v = expr->generateCode(cg);
+            if (isa<ReturnInst>(v)) {
+                anotherTerminator = true;
+                break;
+            }
+        }
+        if (!anotherTerminator)
+            builder.CreateBr(MergeBB);
+    };
     builder.SetInsertPoint(ThenBB);
-    auto thenV= Then->generateCode(cg);
-    builder.CreateBr(MergeBB);
+    genCode(Then);
     ThenBB = builder.GetInsertBlock();
-    Value* elseV = nullptr;
     if(Else!=nullptr) {
         F->getBasicBlockList().push_back(ElseBB);
         builder.SetInsertPoint(ElseBB);
-        if (Else != nullptr) {
-            elseV = Else->generateCode(cg);
-            if (!elseV) return nullptr;
-        }
-        builder.CreateBr(MergeBB);
+        genCode(Else);
         ElseBB = builder.GetInsertBlock();
     }
     F->getBasicBlockList().push_back(MergeBB);

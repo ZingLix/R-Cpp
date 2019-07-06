@@ -96,9 +96,9 @@ std::unique_ptr<ExprAST> Parser::ParseForExpr() {
         return LogError("Expected )");
     }
     getNextToken(); //eat )
-    if(cur_token_.type!=TokenType::lBrace) {
-        return LogError("Expected {");
-    }
+    //if(cur_token_.type!=TokenType::lBrace) {
+    //    return LogError("Expected {");
+    //}
     auto body = ParseBlock();
     return std::make_unique<ForExprAST>(std::move(start), std::move(cond), std::move(end), std::move(body));
 }
@@ -167,13 +167,13 @@ std::unique_ptr<ExprAST> Parser::ParseIfExpr() {
     getNextToken();  // eat if
     auto cond = ParseExpression();
     if (!cond) return nullptr;
-    if (cur_token_.type != TokenType::lBrace)
-        return LogError("Expected {.");
+ //   if (cur_token_.type != TokenType::lBrace)
+ //       return LogError("Expected {.");
     auto then = ParseBlock();
     if(cur_token_.type==TokenType::Else) {
         getNextToken();
         if (cur_token_.type == TokenType::If) {
-            auto elseif = ParseIfExpr();
+            auto elseif = ParseBlock();
             if (!elseif) return nullptr;
             return std::make_unique<IfExprAST>(std::move(cond), std::move(then), std::move(elseif));
         }
@@ -216,8 +216,20 @@ std::unique_ptr<PrototypeAST> Parser::ParsePrototype() {
 }
 
 std::unique_ptr<BlockExprAST> Parser::ParseBlock() {
-    getNextToken(); //eat {
     std::vector<std::unique_ptr<ExprAST>> body;
+    if(cur_token_.type!=TokenType::lBrace)
+    {
+        auto E = ParseExpression();
+        if (E != nullptr) body.emplace_back(std::move(E));
+        if (cur_token_.type == TokenType::Semicolon)
+        {
+            getNextToken();  //eat ;
+        }
+        
+        return std::make_unique<BlockExprAST>(std::move(body));
+    }
+    getNextToken(); //eat {
+
     while (cur_token_.type != TokenType::rBrace && cur_token_.type != TokenType::Eof) {
         auto E = ParseExpression();
         if (E != nullptr) body.emplace_back(std::move(E));

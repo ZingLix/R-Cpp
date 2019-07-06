@@ -48,6 +48,7 @@ class BlockExprAST:public ExprAST
 public:
     BlockExprAST(std::vector<std::unique_ptr<ExprAST>> expr) :expr_(std::move(expr)) {}
     llvm::Value* generateCode(CodeGenerator& cg);
+    std::vector<std::unique_ptr<ExprAST>>& instructions();
 
 private:
     std::vector<std::unique_ptr<ExprAST>> expr_;
@@ -57,7 +58,7 @@ class IfExprAST :public ExprAST
 {
 public:
     IfExprAST(std::unique_ptr<ExprAST> condition,
-        std::unique_ptr<ExprAST> then, std::unique_ptr<ExprAST> els)
+        std::unique_ptr<BlockExprAST> then, std::unique_ptr<BlockExprAST> els)
         :Cond(std::move(condition)),Then(std::move(then)),
         /*ElseIf(nullptr),*/ Else(std::move(els))
     { }
@@ -68,7 +69,7 @@ public:
     //{
     //}
     IfExprAST(std::unique_ptr<ExprAST> condition,
-        std::unique_ptr<ExprAST> then)
+        std::unique_ptr<BlockExprAST> then)
         :Cond(std::move(condition)), Then(std::move(then)),
         /*ElseIf(nullptr),*/ Else(nullptr) {
     }
@@ -76,8 +77,8 @@ public:
 
 private:
     std::unique_ptr<ExprAST> Cond;
-    std::unique_ptr<ExprAST> Then;
-    std::unique_ptr<ExprAST> Else;
+    std::unique_ptr<BlockExprAST> Then;
+    std::unique_ptr<BlockExprAST> Else;
     //std::unique_ptr<BlockExprAST> Else;
 };
 
