@@ -23,6 +23,7 @@
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Support/FileSystem.h"
+#include "Operator.h"
 #include <iostream>
 
 class CodeGenerator
@@ -78,50 +79,14 @@ public:
         return TheFPM.get();
     }
 
-    void output() {
-        llvm::InitializeAllTargetInfos();
-        llvm::InitializeAllTargets();
-        llvm::InitializeAllTargetMCs();
-        llvm::InitializeAllAsmParsers();
-        llvm::InitializeAllAsmPrinters();
-        auto TargetTriple = llvm::sys::getDefaultTargetTriple();
-        TheModule->setTargetTriple(TargetTriple);
-        std::string error;
-        auto Target = llvm::TargetRegistry::lookupTarget(TargetTriple,error);
-        if(!Target) {
-            llvm::errs() << error;
-            return;
-        }
-        auto CPU = "generic";
-        auto Features = "";
-        llvm::TargetOptions opt;
-        auto RM = llvm::Optional<llvm::Reloc::Model>();
-        auto TheTargetMachine =
-            Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
-        TheModule->setDataLayout(TheTargetMachine->createDataLayout());
-        auto Filename = "output.o";
-        std::error_code EC;
-        llvm::raw_fd_ostream dest(Filename, EC, llvm::sys::fs::F_None);
+    llvm::Value* binOpGenCode(llvm::Value* LHS, llvm::Value* RHS, OperatorType op);
 
-        if (EC) {
-            llvm::errs() << "Could not open file: " << EC.message();
-            return;
-        }
-
-        llvm::legacy::PassManager pass;
-        auto FileType = llvm::TargetMachine::CGFT_ObjectFile;
-
-        if (TheTargetMachine->addPassesToEmitFile(pass, dest, nullptr, FileType)) {
-            llvm::errs() << "TheTargetMachine can't emit a file of this type";
-            return;
-        }
-
-        pass.run(*TheModule);
-        dest.flush();
-        std::cout << "output to: "<< Filename << std::endl;
-    }
+    void output();
 
 private:
+    llvm::Value* binOpGenCode_builtin(llvm::Value* LHS, llvm::Value* RHS, OperatorType op);
+
+
     llvm::LLVMContext TheContext;
     llvm::IRBuilder<> Builder;
     std::unique_ptr<llvm::Module> TheModule;

@@ -37,7 +37,7 @@ int getBinOperatorPrecedence(OperatorType t)
 {
     static const std::map<OperatorType, int> BinopPrecedence
     {
-        {OperatorType::Equal, 2},
+        {OperatorType::Assignment, 2},
         {OperatorType::SumComAssign, 2},
         {OperatorType::MinComAssign, 2},
         {OperatorType::MulComAssign, 2},
@@ -51,9 +51,10 @@ int getBinOperatorPrecedence(OperatorType t)
         {OperatorType::LogicalOR, 3},
         {OperatorType::LogicalAND, 4},
         {OperatorType::BitwiseOR, 5},
-        {OperatorType::BitwiseAND, 6},
-        {OperatorType::Equal, 7},
-        {OperatorType::NotEqual, 7},
+        {OperatorType::BitwiseXOR, 6},
+        {OperatorType::BitwiseAND, 7},
+        {OperatorType::Equal, 8},
+        {OperatorType::NotEqual, 8},
         {OperatorType::Less, 10},
         {OperatorType::LessEqual, 10},
         {OperatorType::Greater, 10},

@@ -97,35 +97,11 @@ llvm::Value* BinaryExprAST::generateCode(CodeGenerator& cg) {
     auto L = LHS->generateCode(cg);
     auto R = RHS->generateCode(cg);
     if (!L || !R) return nullptr;
-    auto& builder = cg.builder();
-    bool isFloat = L->getType()->isFloatTy() || R->getType()->isFloatTy();
-    if(isFloat) {
-        switch (Op) {
-        case OperatorType::Addition:
-            return builder.CreateFAdd(L, R);
-        case OperatorType::Subtraction:
-            return builder.CreateFSub(L, R);
-        case OperatorType::Multiplication:
-            return builder.CreateFMul(L, R);
-        case OperatorType::Less:
-            return builder.CreateFCmpULT(L, R);
-        default:
-            return LogError("Invalid binary operator");
-        }
-    }else {
-        switch (Op) {
-        case OperatorType::Addition:
-            return builder.CreateAdd(L, R);
-        case OperatorType::Subtraction:
-            return builder.CreateSub(L, R);
-        case OperatorType::Multiplication:
-            return builder.CreateMul(L, R);
-        case OperatorType::Less:
-            return builder.CreateICmpULT(L, R);
-        default:
-            return LogError("Invalid binary operator");
-        }
+    auto res= cg.binOpGenCode(L, R, Op);
+    if(!res) {
+        return LogError("No suitable operator.");
     }
+    return res;
 
 }
 
