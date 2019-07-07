@@ -145,10 +145,10 @@ std::unique_ptr<ExprAST> Parser::ParseExpression() {
             {
                 if (expr.empty()) return LogError("Incomplete expression.");
                 auto r = std::move(expr.top());
-                ops.pop();
+                expr.pop();
                 if (expr.empty()) return LogError("Incomplete expression.");
                 auto l = std::move(expr.top());
-                ops.pop();
+                expr.pop();
                 auto o = ops.top();
                 ops.pop();
                 auto e = std::make_unique<BinaryExprAST>(o, std::move(l), std::move(r));
@@ -162,10 +162,10 @@ std::unique_ptr<ExprAST> Parser::ParseExpression() {
     {
         if (expr.empty()) return LogError("Incomplete expression.");
         auto r = std::move(expr.top());
-        ops.pop();
+        expr.pop();
         if (expr.empty()) return LogError("Incomplete expression.");
         auto l = std::move(expr.top());
-        ops.pop();
+        expr.pop();
         auto o = ops.top();
         ops.pop();
         auto e = std::make_unique<BinaryExprAST>(o, std::move(l), std::move(r));
