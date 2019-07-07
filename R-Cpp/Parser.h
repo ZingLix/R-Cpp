@@ -21,8 +21,8 @@ public:
     std::unique_ptr<ExprAST> ParseExpression();
     std::unique_ptr<ExprAST> ParseIfExpr();
     std::unique_ptr<ExprAST> ParseForExpr();
-    std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec,
-                                           std::unique_ptr<ExprAST> LHS);
+//    std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec,
+//                                           std::unique_ptr<ExprAST> LHS);
     std::unique_ptr<PrototypeAST> ParsePrototype();
     std::unique_ptr<FunctionAST> ParseDefinition();
     std::unique_ptr<BlockExprAST> ParseBlock();
@@ -56,16 +56,8 @@ private:
     std::unique_ptr<ExprAST> LogError(const std::string& errmsg);
     std::unique_ptr<PrototypeAST> LogErrorP(const std::string& errmsg);
     Token& getNextToken();
-    int GetTokPrecedence();
+    OperatorType getNextBinOperator();
 
-    const std::map<TokenType, int> BinopPrecedence
-    {
-        {TokenType::Equal,2},
-        {TokenType::lAngle,10},
-        {TokenType::Plus,20},
-        {TokenType::Minus,20},
-        {TokenType::Multiply,40}
-    };
     Lexer lexer_;
     Token cur_token_;
     std::vector<std::unique_ptr<FunctionAST>> expr_;

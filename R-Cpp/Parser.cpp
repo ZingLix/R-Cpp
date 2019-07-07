@@ -126,42 +126,177 @@ std::unique_ptr<ExprAST> Parser::ParseReturnExpr() {
     return LogError("Invalid return value.");
 }
 
-int Parser::GetTokPrecedence() {
-    auto it = BinopPrecedence.find(cur_token_.type);
-    if (it == BinopPrecedence.end()) return -1;
-    // Make sure it's a declared binop.
-    int TokPrec = it->second;
-    if (TokPrec <= 0) return -1;
-    return TokPrec;
-}
-
 std::unique_ptr<ExprAST> Parser::ParseExpression() {
     auto LHS = ParsePrimary();
     if (!LHS)
         return nullptr;
-    return ParseBinOpRHS(0, std::move(LHS));
+    std::stack<OperatorType> ops;
+    std::stack<std::unique_ptr<ExprAST>> expr;
+    ops.push(OperatorType::None);
+    expr.push(std::move(LHS));
+    while (true)
+    {
+        if (cur_token_.type == TokenType::Semicolon||cur_token_.type==TokenType::rParenthesis) 
+            break;
+        auto op = getNextBinOperator();
+        if(getBinOperatorPrecedence(op)<getBinOperatorPrecedence(ops.top()))
+        {
+            while (getBinOperatorPrecedence(op) < getBinOperatorPrecedence(ops.top()))
+            {
+                if (expr.empty()) return LogError("Incomplete expression.");
+                auto r = std::move(expr.top());
+                ops.pop();
+                if (expr.empty()) return LogError("Incomplete expression.");
+                auto l = std::move(expr.top());
+                ops.pop();
+                auto o = ops.top();
+                ops.pop();
+                auto e = std::make_unique<BinaryExprAST>(o, std::move(l), std::move(r));
+                expr.push(std::move(e));
+            }
+        }
+        ops.push(op);
+        expr.push(ParsePrimary());
+    }
+    while (ops.top()!=OperatorType::None)
+    {
+        if (expr.empty()) return LogError("Incomplete expression.");
+        auto r = std::move(expr.top());
+        ops.pop();
+        if (expr.empty()) return LogError("Incomplete expression.");
+        auto l = std::move(expr.top());
+        ops.pop();
+        auto o = ops.top();
+        ops.pop();
+        auto e = std::make_unique<BinaryExprAST>(o, std::move(l), std::move(r));
+        expr.push(std::move(e));
+    }
+    return std::move(expr.top());
 }
 
-std::unique_ptr<ExprAST> Parser::ParseBinOpRHS(int ExprPrec, std::unique_ptr<ExprAST> LHS) {
-    while (true) {
-        int TokPrec = GetTokPrecedence();
-        if (TokPrec < ExprPrec)
-            return LHS;
-        TokenType BinOp = cur_token_.type;
-        getNextToken(); // eat binop
-        auto RHS = ParsePrimary();
-        if (!RHS)
-            return nullptr;
-        int NextPrec = GetTokPrecedence();
-        if (TokPrec < NextPrec) {
-            RHS = ParseBinOpRHS(TokPrec + 1, std::move(RHS));
-            if (!RHS)
-                return nullptr;
-        }
-        LHS = std::make_unique<BinaryExprAST>(BinOp, std::move(LHS),
-                                              std::move(RHS));
+OperatorType Parser::getNextBinOperator()
+{
+    auto ret = [&](OperatorType o) {
+        getNextToken();
+        return o;
+    };
+    TokenType first = cur_token_.type;
+    getNextToken();
+    if(first==TokenType::Colon)
+    {
+        if (cur_token_.type == TokenType::Colon)   // ::
+            return ret(OperatorType::ScopeResolution);
+        else
+            return OperatorType::None;
     }
+    if(first==TokenType::Minus)
+    {
+        if (cur_token_.type == TokenType::rAngle)  // ->
+            return ret(OperatorType::MemberAccessA);
+        if (cur_token_.type == TokenType::Equal)   // -=
+            return ret(OperatorType::MinComAssign);
+        return OperatorType::Subtraction;
+    }
+    if(first==TokenType::lAngle)
+    {
+        if (cur_token_.type == TokenType::lAngle) {  // <<
+            getNextToken();
+            if(cur_token_.type==TokenType::Equal)    // <<=
+                return ret(OperatorType::LshComAssign);
+            return OperatorType::LeftShift;
+        }
+        if (cur_token_.type == TokenType::Equal)      // <=
+            return ret(OperatorType::LessEqual);
+        return OperatorType::Less;
+    }
+    if(first==TokenType::rAngle)
+    {
+        if(cur_token_.type==TokenType::rAngle)         // >>
+        {
+            getNextToken();
+            if (cur_token_.type == TokenType::Equal)   // >>=
+                return ret(OperatorType::RshComAssign);
+            return OperatorType::RightShift;
+        }
+        if (cur_token_.type == TokenType::Equal)       // >=
+            return ret(OperatorType::GreaterEqual);
+        return OperatorType::Greater;
+    }
+    if(first==TokenType::Exclam)
+    {
+        if (cur_token_.type == TokenType::Equal)       // !=
+            return ret(OperatorType::NotEqual);
+        return OperatorType::None;
+    }
+    if(first==TokenType::Multiply)
+    {
+        if (cur_token_.type == TokenType::Equal)        // *=
+            return ret(OperatorType::MulComAssign);
+        return OperatorType::Multiplication;
+    }
+    if(first==TokenType::Divide)
+    {
+        if (cur_token_.type == TokenType::Equal)
+            return ret(OperatorType::DivComAssign);
+        return OperatorType::Division;
+    }
+    if(first==TokenType::Plus)
+    {
+        if (cur_token_.type == TokenType::Equal)
+            return ret(OperatorType::SumComAssign);
+        return OperatorType::Addition;
+    }
+    if(first==TokenType::Percent)
+    {
+        if (cur_token_.type == TokenType::Equal)
+            return ret(OperatorType::RemComAssign);
+        return OperatorType::Remainder;
+    }
+    if(first==TokenType::And)
+    {
+        if (cur_token_.type == TokenType::And)
+            return ret(OperatorType::LogicalAND);
+        if (cur_token_.type == TokenType::Equal)
+            return ret(OperatorType::ANDComAssign);
+        return ret(OperatorType::BitwiseAND);
+    }
+    if(first==TokenType::Or)
+    {
+        if(cur_token_.type==TokenType::Or)
+            return ret(OperatorType::LogicalOR);
+        if (cur_token_.type == TokenType::Equal)
+            return ret(OperatorType::ORComAssign);
+        return OperatorType::BitwiseOR;
+    }
+    if(first==TokenType::Xor)
+    {
+        if (cur_token_.type == TokenType::Xor)
+            return ret(OperatorType::XORComAssign);
+        return OperatorType::None;
+    }
+    return TokenToBinOperator(first);
 }
+
+
+//std::unique_ptr<ExprAST> Parser::ParseBinOpRHS(int ExprPrec, std::unique_ptr<ExprAST> LHS) {
+//    while (true) {
+//        int TokPrec = GetTokPrecedence();
+//        if (TokPrec < ExprPrec)
+//            return LHS;
+//        auto BinOp = getNextBinOperator();
+//        auto RHS = ParsePrimary();
+//        if (!RHS)
+//            return nullptr;
+//        int NextPrec = GetTokPrecedence();
+//        if (TokPrec < NextPrec) {
+//            RHS = ParseBinOpRHS(TokPrec + 1, std::move(RHS));
+//            if (!RHS)
+//                return nullptr;
+//        }
+//        LHS = std::make_unique<BinaryExprAST>(BinOp, std::move(LHS),
+//                                              std::move(RHS));
+//    }
+//}
 
 std::unique_ptr<ExprAST> Parser::ParseIfExpr() {
     getNextToken();  // eat if

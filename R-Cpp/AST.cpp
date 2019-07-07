@@ -76,56 +76,56 @@ llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
     cg.setValue(varname_, alloca);
 }
 
-BinaryExprAST::BinaryExprAST(TokenType op, std::unique_ptr<ExprAST> lhs, 
+BinaryExprAST::BinaryExprAST(OperatorType op, std::unique_ptr<ExprAST> lhs,
                              std::unique_ptr<ExprAST> rhs)
     : Op(op), LHS(std::move(lhs)),RHS(std::move(rhs)) 
 {
 }
 
 llvm::Value* BinaryExprAST::generateCode(CodeGenerator& cg) {
-    if(Op==TokenType::Equal) {
-        VariableExprAST* LHSE = dynamic_cast<VariableExprAST*>(LHS.get());
-        if (!LHSE)
-            return LogError("destination of '=' must be a variable");
-        auto val = RHS->generateCode(cg);
-        if (!val) return nullptr;
-        auto var = cg.getValue(LHSE->getName());
-        if (!var) return LogError("Unknown variable name.");
-        cg.builder().CreateStore(val, var);
-        return val;
-    }
-    auto L = LHS->generateCode(cg);
-    auto R = RHS->generateCode(cg);
-    if (!L || !R) return nullptr;
-    auto& builder = cg.builder();
-    bool isFloat = L->getType()->isFloatTy() || R->getType()->isFloatTy();
-    if(isFloat) {
-        switch (Op) {
-        case TokenType::Plus:
-            return builder.CreateFAdd(L, R);
-        case TokenType::Minus:
-            return builder.CreateFSub(L, R);
-        case TokenType::Multiply:
-            return builder.CreateFMul(L, R);
-        case TokenType::lAngle:
-            return builder.CreateFCmpULT(L, R);
-        default:
-            return LogError("Invalid binary operator");
-        }
-    }else {
-        switch (Op) {
-        case TokenType::Plus:
-            return builder.CreateAdd(L, R);
-        case TokenType::Minus:
-            return builder.CreateSub(L, R);
-        case TokenType::Multiply:
-            return builder.CreateMul(L, R);
-        case TokenType::lAngle:
-            return builder.CreateICmpULT(L, R);
-        default:
-            return LogError("Invalid binary operator");
-        }
-    }
+    //if(Op==TokenType::Equal) {
+    //    VariableExprAST* LHSE = dynamic_cast<VariableExprAST*>(LHS.get());
+    //    if (!LHSE)
+    //        return LogError("destination of '=' must be a variable");
+    //    auto val = RHS->generateCode(cg);
+    //    if (!val) return nullptr;
+    //    auto var = cg.getValue(LHSE->getName());
+    //    if (!var) return LogError("Unknown variable name.");
+    //    cg.builder().CreateStore(val, var);
+    //    return val;
+    //}
+    //auto L = LHS->generateCode(cg);
+    //auto R = RHS->generateCode(cg);
+    //if (!L || !R) return nullptr;
+    //auto& builder = cg.builder();
+    //bool isFloat = L->getType()->isFloatTy() || R->getType()->isFloatTy();
+    //if(isFloat) {
+    //    switch (Op) {
+    //    case TokenType::Plus:
+    //        return builder.CreateFAdd(L, R);
+    //    case TokenType::Minus:
+    //        return builder.CreateFSub(L, R);
+    //    case TokenType::Multiply:
+    //        return builder.CreateFMul(L, R);
+    //    case TokenType::lAngle:
+    //        return builder.CreateFCmpULT(L, R);
+    //    default:
+    //        return LogError("Invalid binary operator");
+    //    }
+    //}else {
+    //    switch (Op) {
+    //    case TokenType::Plus:
+    //        return builder.CreateAdd(L, R);
+    //    case TokenType::Minus:
+    //        return builder.CreateSub(L, R);
+    //    case TokenType::Multiply:
+    //        return builder.CreateMul(L, R);
+    //    case TokenType::lAngle:
+    //        return builder.CreateICmpULT(L, R);
+    //    default:
+    //        return LogError("Invalid binary operator");
+    //    }
+    //}
 
 }
 

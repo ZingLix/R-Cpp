@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 #include "Token.h"
+#include "Operator.h"
 #include <llvm/IR/Value.h>
 #include "CodeGenerator.h"
 
@@ -109,11 +110,11 @@ private:
 class BinaryExprAST:public ExprAST
 {
 public:
-    BinaryExprAST(TokenType op, std::unique_ptr<ExprAST> lhs, std::unique_ptr<ExprAST> rhs);
+    BinaryExprAST(OperatorType op, std::unique_ptr<ExprAST> lhs, std::unique_ptr<ExprAST> rhs);
     llvm::Value* generateCode(CodeGenerator& cg) override;
 
 private:
-    TokenType Op;
+    OperatorType Op;
     std::unique_ptr<ExprAST> LHS, RHS;
 };
 

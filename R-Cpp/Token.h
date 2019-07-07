@@ -44,6 +44,7 @@ enum class TokenType
     SingleQuote='\'',
     DoubleQuote='"',
     Question='?',
+    Tilde= '~',
     Unknown,
     Eof=EOF
 };
