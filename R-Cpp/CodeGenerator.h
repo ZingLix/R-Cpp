@@ -24,6 +24,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Support/FileSystem.h"
 #include "Operator.h"
+#include "Variable.h"
 #include <iostream>
 
 class CodeGenerator
@@ -51,12 +52,12 @@ public:
         return TheContext;
     }
 
-    llvm::AllocaInst* getValue(const std::string& name) {
+    Variable& getValue(const std::string& name) {
         return NamedValues[name];
     }
 
-    void setValue(const std::string& name, llvm::AllocaInst* val) {
-        NamedValues[name] = val;
+    void setValue(const std::string& name,const std::string& type, llvm::AllocaInst* val) {
+        NamedValues[name] = Variable(name,type,val);
     }
 
     void clearValue() {
@@ -79,18 +80,17 @@ public:
         return TheFPM.get();
     }
 
-    llvm::Value* binOpGenCode(llvm::Value* LHS, llvm::Value* RHS, OperatorType op);
-
+    llvm::Value* binOpGenCode(llvm::Value* LHS, llvm::Value* RHS, OperatorType op,const std::string& LHSName="");
     void output();
 
 private:
-    llvm::Value* binOpGenCode_builtin(llvm::Value* LHS, llvm::Value* RHS, OperatorType op);
-
+    llvm::Value* binOpGenCode_builtin(llvm::Value* LHS, llvm::Value* RHS, OperatorType op, const std::string& LHSName);
+    llvm::Value* assign(const std::string& varname, llvm::Value* val);
 
     llvm::LLVMContext TheContext;
     llvm::IRBuilder<> Builder;
     std::unique_ptr<llvm::Module> TheModule;
     std::unique_ptr<llvm::legacy::FunctionPassManager> TheFPM;
-    std::map<std::string, llvm::AllocaInst*> NamedValues;
+    std::map<std::string, Variable> NamedValues;
 };
 

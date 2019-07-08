@@ -52,3 +52,4 @@ OperatorType TokenToBinOperator(TokenType t);
 
 int getBinOperatorPrecedence(OperatorType t);
 
+bool isAssignOperator(OperatorType t);

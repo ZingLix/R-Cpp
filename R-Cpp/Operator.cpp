@@ -74,3 +74,21 @@ int getBinOperatorPrecedence(OperatorType t)
     if (it == BinopPrecedence.end()) return -1;
     return it->second;
 }
+
+bool isAssignOperator(OperatorType t) {
+    switch (t) {
+    case OperatorType::SumComAssign:
+    case OperatorType::MinComAssign:
+    case OperatorType::DivComAssign:
+    case OperatorType::RemComAssign:
+    case OperatorType::LshComAssign:
+    case OperatorType::RshComAssign:
+    case OperatorType::ANDComAssign:
+    case OperatorType::XORComAssign:
+    case OperatorType::ORComAssign:
+    case OperatorType::Assignment:
+        return true;
+    default:
+        return false;
+    }
+}

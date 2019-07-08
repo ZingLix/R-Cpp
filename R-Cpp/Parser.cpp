@@ -13,10 +13,20 @@ std::unique_ptr<ExprAST> Parser::ParseFloatExpr() {
     return res;
 }
 
-std::unique_ptr<ExprAST> Parser::ParsePrimary() {
+std::unique_ptr<ExprAST> Parser::ParseStatement() {
     if (cur_token_.type == TokenType::Return) {
         return ParseReturnExpr();
     }
+    if (cur_token_.type == TokenType::If) {
+        return ParseIfExpr();
+    }
+    if (cur_token_.type == TokenType::For) {
+        return ParseForExpr();
+    }
+    return ParseExpression();
+}
+
+std::unique_ptr<ExprAST> Parser::ParsePrimary() {
     if (cur_token_.type == TokenType::Identifier) {
         return ParseIdentifierExpr();
     }
@@ -28,12 +38,6 @@ std::unique_ptr<ExprAST> Parser::ParsePrimary() {
     }
     if (cur_token_.type == TokenType::lParenthesis) {
         return ParseParenExpr();
-    }
-    if (cur_token_.type == TokenType::If) {
-        return ParseIfExpr();
-    }
-    if(cur_token_.type==TokenType::For) {
-        return ParseForExpr();
     }
     return LogError("Unexpected token.");
 }
@@ -274,6 +278,11 @@ OperatorType Parser::getNextBinOperator()
             return ret(OperatorType::XORComAssign);
         return OperatorType::None;
     }
+    if(first==TokenType::Equal) {
+        if (cur_token_.type == TokenType::Equal)
+            return ret(OperatorType::Equal);
+        return OperatorType::Assignment;
+    }
     return TokenToBinOperator(first);
 }
 
@@ -300,7 +309,7 @@ OperatorType Parser::getNextBinOperator()
 
 std::unique_ptr<ExprAST> Parser::ParseIfExpr() {
     getNextToken();  // eat if
-    auto cond = ParseExpression();
+    auto cond = ParseParenExpr();
     if (!cond) return nullptr;
  //   if (cur_token_.type != TokenType::lBrace)
  //       return LogError("Expected {.");
@@ -354,7 +363,7 @@ std::unique_ptr<BlockExprAST> Parser::ParseBlock() {
     std::vector<std::unique_ptr<ExprAST>> body;
     if(cur_token_.type!=TokenType::lBrace)
     {
-        auto E = ParseExpression();
+        auto E = ParseStatement();
         if (E != nullptr) body.emplace_back(std::move(E));
         if (cur_token_.type == TokenType::Semicolon)
         {
@@ -366,7 +375,7 @@ std::unique_ptr<BlockExprAST> Parser::ParseBlock() {
     getNextToken(); //eat {
 
     while (cur_token_.type != TokenType::rBrace && cur_token_.type != TokenType::Eof) {
-        auto E = ParseExpression();
+        auto E = ParseStatement();
         if (E != nullptr) body.emplace_back(std::move(E));
         if(cur_token_.type==TokenType::Semicolon)
         getNextToken(); // eat ;

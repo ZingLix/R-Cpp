@@ -12,6 +12,7 @@ public:
     {}
 
     std::unique_ptr<ExprAST> ParsePrimary();
+    std::unique_ptr<ExprAST> ParseStatement();
     std::unique_ptr<ExprAST> ParseIntegerExpr();
     std::unique_ptr<ExprAST> ParseFloatExpr();
     std::unique_ptr<ExprAST> ParseParenExpr();

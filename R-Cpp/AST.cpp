@@ -47,8 +47,8 @@ VariableExprAST::VariableExprAST(const std::string& n): name(n) {
 
 llvm::Value* VariableExprAST::generateCode(CodeGenerator& cg) {
     auto v = cg.getValue(name);
-    if (v == nullptr) std::cout << "Unknown variable name." << std::endl;
-    return cg.builder().CreateLoad(v,name.c_str());
+    if (v.val == nullptr) std::cout << "Unknown variable name." << std::endl;
+    return cg.builder().CreateLoad(v.val,name.c_str());
 }
 
 VariableDefAST::VariableDefAST(const std::string& type_name, const std::string& var_name,
@@ -73,7 +73,8 @@ llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
     }
     auto alloca = CreateEntryBlockAlloca(F, typename_, varname_, cg);
     cg.builder().CreateStore(InitVal, alloca);
-    cg.setValue(varname_, alloca);
+    cg.setValue(varname_,typename_, alloca);
+    return alloca;
 }
 
 BinaryExprAST::BinaryExprAST(OperatorType op, std::unique_ptr<ExprAST> lhs,
@@ -83,21 +84,20 @@ BinaryExprAST::BinaryExprAST(OperatorType op, std::unique_ptr<ExprAST> lhs,
 }
 
 llvm::Value* BinaryExprAST::generateCode(CodeGenerator& cg) {
-    if(Op==OperatorType::Assignment) {
-        VariableExprAST* LHSE = dynamic_cast<VariableExprAST*>(LHS.get());
-        if (!LHSE)
-            return LogError("destination of '=' must be a variable");
-        auto val = RHS->generateCode(cg);
-        if (!val) return nullptr;
-        auto var = cg.getValue(LHSE->getName());
-        if (!var) return LogError("Unknown variable name.");
-        cg.builder().CreateStore(val, var);
-        return val;
-    }
     auto L = LHS->generateCode(cg);
     auto R = RHS->generateCode(cg);
     if (!L || !R) return nullptr;
-    auto res= cg.binOpGenCode(L, R, Op);
+    Value* res=nullptr;
+    if (isAssignOperator(Op)) {
+        VariableExprAST* LHSE = dynamic_cast<VariableExprAST*>(LHS.get());
+        if (!LHSE)
+            return LogError("destination of '=' must be a variable");
+        res= cg.binOpGenCode(L, R, Op, LHSE->getName());
+       // cg.assign(LHSE->getName(), val, Op);
+    }else {
+        res = cg.binOpGenCode(L, R, Op);
+    }
+    
     if(!res) {
         return LogError("No suitable operator.");
     }
@@ -120,8 +120,6 @@ llvm::Value* ForExprAST::generateCode(CodeGenerator& cg) {
     auto startval = Start->generateCode(cg);
     if (!startval) return nullptr;
     auto F = cg.builder().GetInsertBlock()->getParent();
-
-
     auto PreHeaderBB = BasicBlock::Create(cg.context(), "cond", F);
     cg.builder().CreateBr(PreHeaderBB);
     cg.builder().SetInsertPoint(PreHeaderBB);
@@ -165,7 +163,11 @@ llvm::Value* IfExprAST::generateCode(CodeGenerator& cg) {
     auto cond = Cond->generateCode(cg);
     if (!cond) return nullptr;
     auto& builder = cg.builder();
-    cond = builder.CreateICmpEQ(cond,ConstantInt::get(cg.context(),APInt(32,0)), "ifcond");
+    if(!llvm::isa<IntegerType>(*cond->getType())) {
+        return LogError("Only bool or integer can be the condition.");
+    }
+    cond = builder.CreateICmpNE(cond,ConstantInt::get(cg.context(),
+        APInt(static_cast<IntegerType*>(cond->getType())->getBitWidth(),0)), "ifcond");
     Function* F = builder.GetInsertBlock()->getParent();
     BasicBlock* ThenBB = BasicBlock::Create(cg.context(), "then", F);
     BasicBlock* ElseBB = BasicBlock::Create(cg.context(), "else");
@@ -220,10 +222,10 @@ llvm::Value* CallExprAST::generateCode(CodeGenerator& cg) {
 
 llvm::Function* PrototypeAST::generateCode(CodeGenerator& cg) {
     std::vector<llvm::Type*> ArgT;
-    for(auto&t:Args) {
-        if (t.first == "i32") ArgT.push_back(Type::getInt32Ty(cg.context()));
-        else if (t.first == "float") ArgT.push_back(Type::getFloatTy(cg.context()));
-        else return LogErrorF("Unknown type.");
+    for(auto& t:Args) {
+        auto type = get_builtin_type(t.first, cg);
+        if(!type) return LogErrorF("Unknown type.");
+        ArgT.push_back(type);
     }
     auto FT = FunctionType::get(get_builtin_type("i32",cg), ArgT, false);
     auto F = Function::Create(FT, Function::ExternalLinkage, Name, cg.getModule());
@@ -244,12 +246,31 @@ llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
     for(auto& Arg:F->args()) {
         auto alloca = CreateEntryBlockAlloca(F,Arg.getType(), Arg.getName(), cg);
         cg.builder().CreateStore(&Arg, alloca);
-        cg.setValue(Arg.getName(), alloca);
+        // todo: should track function args type`
+        cg.setValue(Arg.getName(),"", alloca);
     }
-    Body->generateCode(cg);
+    bool hasReturn = false;
+    for(auto& i:Body->instructions()) {
+        i->generateCode(cg);
+        if(dynamic_cast<ReturnAST*>(i.get())!=nullptr) {
+            hasReturn = true;
+        }
+    }
+    // fn func(){
+    //     if(..) return;
+    //     else return;
+    //     // here doesn't need return, but ifexpr will create new branch 
+    //     // for the code below. LLVM requires that all blocks mush have
+    //     // terminator. Therefore, using 'return void' to make it valid,
+    //     // and optimizer will remove it.
+    //     // This is a temporary method. Maybe ifexpr.generateCode() should
+    //     // be refactored.
+    // }
+    //
+    if (!hasReturn) cg.builder().CreateRet(nullptr);
     if(verifyFunction(*F,&errs())) {
         std::cout << "something bad...\n";
     }
-    //cg.FPM()->run(*F);
+    cg.FPM()->run(*F);
     return F;
 }

@@ -1,17 +1,17 @@
 #include "CodeGenerator.h"
 #include "Type.h"
 
-llvm::Value* CodeGenerator::binOpGenCode(llvm::Value* LHS, llvm::Value* RHS, OperatorType op) {
+llvm::Value* CodeGenerator::binOpGenCode(llvm::Value* LHS, llvm::Value* RHS, OperatorType op, const std::string& LHSName) {
     if(is_builtin_type(LHS->getType()->getTypeID())
         &&is_builtin_type(RHS->getType()->getTypeID())) 
     {
-        return binOpGenCode_builtin(LHS, RHS, op);
+        return binOpGenCode_builtin(LHS, RHS, op,LHSName);
     }
     //todo: Should be operator overload 
     return nullptr;
 }
 
-llvm::Value* CodeGenerator::binOpGenCode_builtin(llvm::Value* LHS, llvm::Value* RHS, OperatorType op) {
+llvm::Value* CodeGenerator::binOpGenCode_builtin(llvm::Value* LHS, llvm::Value* RHS, OperatorType op, const std::string& LHSName) {
     llvm::Value* tmp = nullptr;
     if (LHS->getType()->isFloatTy() || LHS->getType()->isDoubleTy()
         || RHS->getType()->isFloatTy() || RHS->getType()->isDoubleTy()) {
@@ -38,16 +38,16 @@ llvm::Value* CodeGenerator::binOpGenCode_builtin(llvm::Value* LHS, llvm::Value* 
             return builder().CreateFCmpUNE(LHS, RHS);
         case OperatorType::SumComAssign:
             tmp = builder().CreateFAdd(LHS, RHS);
-            return builder().CreateStore(tmp, LHS);
+            return assign(LHSName,tmp);
         case OperatorType::MinComAssign:
             tmp = builder().CreateFSub(LHS, RHS);
-            return builder().CreateStore(tmp, LHS);
+            return assign(LHSName,tmp);
         case OperatorType::DivComAssign:
             tmp = builder().CreateFDiv(LHS, RHS);
-            return builder().CreateStore(tmp, LHS);
+            return assign(LHSName,tmp);
         case OperatorType::RemComAssign:
             tmp = builder().CreateFRem(LHS, RHS);
-            return builder().CreateStore(tmp, LHS);
+            return assign(LHSName,tmp);
         case OperatorType::Assignment:
             return builder().CreateStore(RHS, LHS);
         default:
@@ -55,6 +55,16 @@ llvm::Value* CodeGenerator::binOpGenCode_builtin(llvm::Value* LHS, llvm::Value* 
         }
     }
     else {
+        if(llvm::isa<llvm::ConstantInt>(LHS)) {
+            LHS = llvm::ConstantInt::get(LHS->getType(), 
+                llvm::APInt(RHS->getType()->getIntegerBitWidth(),
+                    static_cast<llvm::ConstantInt*>(LHS)->getSExtValue(), true));
+        }else
+        if (llvm::isa<llvm::ConstantInt>(RHS)) {
+            RHS = llvm::ConstantInt::get(RHS->getType(), 
+                llvm::APInt(LHS->getType()->getIntegerBitWidth(),
+                    static_cast<llvm::ConstantInt*>(RHS)->getSExtValue(), true));
+        }
         switch (op) {
         case OperatorType::Multiplication:
             return builder().CreateMul(LHS, RHS);
@@ -90,37 +100,50 @@ llvm::Value* CodeGenerator::binOpGenCode_builtin(llvm::Value* LHS, llvm::Value* 
             return builder().CreateOr(LHS, RHS);
         case OperatorType::SumComAssign:
             tmp = builder().CreateAdd(LHS, RHS);
-            return builder().CreateStore(tmp, LHS);
+            return assign(LHSName,tmp);
         case OperatorType::MinComAssign:
             tmp = builder().CreateSub(LHS, RHS);
-            return builder().CreateStore(tmp, LHS);
+            return assign(LHSName,tmp);
         case OperatorType::DivComAssign:
             tmp = builder().CreateUDiv(LHS, RHS);
-            return builder().CreateStore(tmp, LHS);
+            return assign(LHSName,tmp);
         case OperatorType::RemComAssign:
             tmp = builder().CreateURem(LHS, RHS);
-            return builder().CreateStore(tmp, LHS);
+            return assign(LHSName,tmp);
         case OperatorType::LshComAssign:
             tmp = builder().CreateShl(LHS, RHS);
-            return builder().CreateStore(tmp, LHS);
+            return assign(LHSName,tmp);
         case OperatorType::RshComAssign:
             tmp = builder().CreateLShr(tmp, RHS);
-            return builder().CreateStore(tmp, LHS);
+            return assign(LHSName,tmp);
         case OperatorType::ANDComAssign:
             tmp = builder().CreateAnd(tmp, RHS);
-            return builder().CreateStore(tmp, LHS);
+            return assign(LHSName,tmp);
         case OperatorType::XORComAssign:
             tmp = builder().CreateXor(tmp, RHS);
-            return builder().CreateStore(tmp, LHS);
+            return assign(LHSName,tmp);
         case OperatorType::ORComAssign:
             tmp = builder().CreateOr(tmp, RHS);
-            return builder().CreateStore(tmp, LHS);
+            return assign(LHSName,tmp);
         case OperatorType::Assignment:
-            return builder().CreateStore(RHS, LHS);
+            return assign(LHSName, RHS);;
+
         default:
             return nullptr;
         }
     }
+}
+
+llvm::Value* CodeGenerator::assign(const std::string& varname, llvm::Value* val) {
+    auto var = getValue(varname).val;
+    if (llvm::isa<llvm::ConstantInt>(val)) {
+        val = llvm::ConstantInt::get(val->getType(),
+            llvm::APInt(var->getAllocatedType()->getIntegerBitWidth(),
+                static_cast<llvm::ConstantInt*>(val)->getSExtValue(), true));
+    }
+    if (!var) return nullptr;
+    builder().CreateStore(val, var);
+    return val;
 }
 
 
