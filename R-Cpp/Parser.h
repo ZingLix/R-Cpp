@@ -8,7 +8,8 @@
 class Parser
 {
 public:
-    Parser(const std::string& filename):lexer_(filename),cur_token_(lexer_.nextToken())
+    Parser(const std::string& filename):lexer_(filename),cur_token_(lexer_.nextToken()), symbol_(std::make_shared<SymbolTable>())
+
     {}
 
     std::unique_ptr<ExprAST> ParsePrimary();
@@ -22,44 +23,21 @@ public:
     std::unique_ptr<ExprAST> ParseExpression();
     std::unique_ptr<ExprAST> ParseIfExpr();
     std::unique_ptr<ExprAST> ParseForExpr();
-//    std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec,
-//                                           std::unique_ptr<ExprAST> LHS);
     std::unique_ptr<PrototypeAST> ParsePrototype();
     std::unique_ptr<FunctionAST> ParseDefinition();
     std::unique_ptr<BlockExprAST> ParseBlock();
 
-    //std::unique_ptr<FunctionAST> ParseTopLevelExpr() {
-    //    if (auto E = ParseExpression()) {
-    //        // Make an anonymous proto.
-    //        auto Proto = std::make_unique<PrototypeAST>("", std::vector<std::string>());
-    //        return std::make_unique<FunctionAST>(std::move(Proto), std::move(E));
-    //    }
-    //    return nullptr;
-    //}
-
     void HandleDefinition();
-
-    //void HandleTopLevelExpression() {
-    //    // Evaluate a top-level expression into an anonymous function.
-    //    if (ParseTopLevelExpr()) {
-    //        fprintf(stderr, "Parsed a top-level expr\n");
-    //    } else {
-    //        // Skip token for error recovery.
-    //        getNextToken();
-    //    }
-    //}
-
     void MainLoop();
-
     std::vector<std::unique_ptr<FunctionAST>>& AST();
 
 private:
-    std::unique_ptr<ExprAST> LogError(const std::string& errmsg);
-    std::unique_ptr<PrototypeAST> LogErrorP(const std::string& errmsg);
     Token& getNextToken();
     OperatorType getNextBinOperator();
+    void error(const std::string& errmsg);
 
     Lexer lexer_;
     Token cur_token_;
     std::vector<std::unique_ptr<FunctionAST>> expr_;
+    std::shared_ptr<SymbolTable> symbol_;
 };

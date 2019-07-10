@@ -8,6 +8,8 @@ class Lexer
 public:
     Lexer(const std::string& filename);
     Token nextToken();
+    int getLineNo();
+    int getCharNo();
 
 private:
     Token nextIdentifier();

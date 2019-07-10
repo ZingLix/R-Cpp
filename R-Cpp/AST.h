@@ -10,41 +10,48 @@
 class ExprAST
 {
 public:
+    ExprAST(const std::string& s):type(s){}
+    std::string getType()
+    {
+        return type;
+    }
     virtual ~ExprAST() = default;
     virtual llvm::Value* generateCode(CodeGenerator& cg) =0;
+protected:
+    std::string type;
 };
 
 class IntegerExprAST:public ExprAST
 {
 public:
-    IntegerExprAST(int v);
+    IntegerExprAST(std::int64_t v);
     llvm::Value* generateCode(CodeGenerator& cg) override;
 
 private:
-    int val;
+    std::int64_t val;
 };
 
 class FloatExprAST :public ExprAST
 {
 public:
-    FloatExprAST(float v);
+    FloatExprAST(double v);
     llvm::Value* generateCode(CodeGenerator& cg) override;
 
 private:
-    float val;
+    double val;
 };
 
 class VariableExprAST:public ExprAST
 {
 public:
-    VariableExprAST(const std::string& n);
+    VariableExprAST(const std::string& n, const std::string& t);
     llvm::Value* generateCode(CodeGenerator& cg) override;
     std::string getName() { return name; }
 private:
     std::string name;
 };
 
-class BlockExprAST:public ExprAST
+class BlockExprAST
 {
 public:
     BlockExprAST(std::vector<std::unique_ptr<ExprAST>> expr) :expr_(std::move(expr)) {}
@@ -60,7 +67,7 @@ class IfExprAST :public ExprAST
 public:
     IfExprAST(std::unique_ptr<ExprAST> condition,
         std::unique_ptr<BlockExprAST> then, std::unique_ptr<BlockExprAST> els)
-        :Cond(std::move(condition)),Then(std::move(then)),
+        :ExprAST("void"), Cond(std::move(condition)),Then(std::move(then)),
         /*ElseIf(nullptr),*/ Else(std::move(els))
     { }
     //IfExprAST(std::unique_ptr<ExprAST> condition,
@@ -71,7 +78,7 @@ public:
     //}
     IfExprAST(std::unique_ptr<ExprAST> condition,
         std::unique_ptr<BlockExprAST> then)
-        :Cond(std::move(condition)), Then(std::move(then)),
+        :ExprAST("void"), Cond(std::move(condition)), Then(std::move(then)),
         /*ElseIf(nullptr),*/ Else(nullptr) {
     }
     llvm::Value* generateCode(CodeGenerator& cg) override;
@@ -86,7 +93,8 @@ private:
 class VariableDefAST:public ExprAST
 {
 public:
-    VariableDefAST(const std::string& type_name, const std::string& var_name, std::unique_ptr<ExprAST> init_value);
+    VariableDefAST(const std::string& type_name, const std::string& var_name,
+        std::unique_ptr<ExprAST> init_value);
 
     VariableDefAST(const std::string& type_name, const std::string& var_name);
     llvm::Value* generateCode(CodeGenerator& cg) override;
@@ -110,12 +118,13 @@ private:
 class BinaryExprAST:public ExprAST
 {
 public:
-    BinaryExprAST(OperatorType op, std::unique_ptr<ExprAST> lhs, std::unique_ptr<ExprAST> rhs);
+    BinaryExprAST(OperatorType op, std::unique_ptr<ExprAST> lhs,const std::string& ltype, std::unique_ptr<ExprAST> rhs,const std::string& rtype);
     llvm::Value* generateCode(CodeGenerator& cg) override;
 
 private:
     OperatorType Op;
     std::unique_ptr<ExprAST> LHS, RHS;
+    std::string LType, RType;
 };
 
 class ForExprAST:public ExprAST
@@ -123,7 +132,7 @@ class ForExprAST:public ExprAST
 public:
     ForExprAST(std::unique_ptr<ExprAST> start, std::unique_ptr<ExprAST> cond,
         std::unique_ptr<ExprAST> end, std::unique_ptr<BlockExprAST> body)
-        :Start(std::move(start)),Cond(std::move(cond)),
+        :ExprAST("void"), Start(std::move(start)),Cond(std::move(cond)),
          End(std::move(end)),Body(std::move(body))
     { }
     llvm::Value* generateCode(CodeGenerator& cg) override;
@@ -136,7 +145,7 @@ private:
 class CallExprAST:public ExprAST
 {
 public:
-    CallExprAST(const std::string& callee, std::vector<std::unique_ptr<ExprAST>> args);
+    CallExprAST(const std::string& callee, std::vector<std::unique_ptr<ExprAST>> args, const std::string& t);
     llvm::Value* generateCode(CodeGenerator& cg) override; 
 
 private:
@@ -147,15 +156,15 @@ private:
 class PrototypeAST
 {
     std::string Name;
-    std::vector<std::pair<std::string,std::string>> Args;
-    
+    std::vector<Variable> Args;
+
 public:
-    PrototypeAST(const std::string& name, std::vector<std::pair<std::string, std::string>> Args)
+    PrototypeAST(const std::string& name, std::vector<Variable> Args)
         : Name(name), Args(std::move(Args)) {
     }
     ~PrototypeAST() {}
     const std::string& getName() const { return Name; }
-    std::vector<std::pair<std::string, std::string>>& Arg()
+    std::vector<Variable>& Arg()
     {
         return Args;
     }

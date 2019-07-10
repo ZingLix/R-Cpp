@@ -3,7 +3,7 @@ using namespace std;
 
 Lexer::Lexer(const string& filename)
     : fstream_(filename, fstream_.in), lastChar_(' '),
-    lineCount(0),charCount(0)
+    lineCount(1),charCount(1)
 {
     if (!fstream_.is_open())
         throw std::runtime_error("Failed to open " + filename + ".");
@@ -27,6 +27,16 @@ Token Lexer::nextToken()
     if (lastChar_ == EOF)
         return Token(TokenType::Eof);
     return nextCharacter();
+}
+
+int Lexer::getLineNo()
+{
+    return lineCount;
+}
+
+int Lexer::getCharNo()
+{
+    return charCount;
 }
 
 Token Lexer::nextIdentifier()
@@ -107,7 +117,7 @@ void Lexer::getNextChar()
     if(lastChar_=='\n')
     {
         lineCount++;
-        charCount = 0;
+        charCount = 1;
     }else
     {
         charCount++;

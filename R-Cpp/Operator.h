@@ -1,5 +1,9 @@
 #pragma once
 #include "Token.h"
+#include <functional>
+#include <llvm/IR/Value.h>
+
+class CodeGenerator;
 
 enum class OperatorType
 {
@@ -52,4 +56,11 @@ OperatorType TokenToBinOperator(TokenType t);
 
 int getBinOperatorPrecedence(OperatorType t);
 
-bool isAssignOperator(OperatorType t);
+bool isCompoundAssignOperator(OperatorType t);
+bool isCompareOperator(OperatorType t);
+OperatorType compoundAssignToOperator(OperatorType t);
+
+llvm::Value* builtinTypeOperate(llvm::Value* LHS, const std::string& ltype,
+    llvm::Value* RHS, const std::string& rtype, OperatorType op
+    , CodeGenerator& cg);
+std::string builtinOperatorReturnType(const std::string& ltype, const std::string& rtype, OperatorType op);

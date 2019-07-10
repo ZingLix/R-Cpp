@@ -10,12 +10,12 @@ Value* LogError(const std::string& msg) {
     return nullptr;
 }
 
-Function* LogErrorF(const std::string& msg) {
+llvm::Function* LogErrorF(const std::string& msg) {
     std::cout << msg << std::endl;
     return nullptr;
 }
 
-AllocaInst* CreateEntryBlockAlloca(Function* TheFunction, Type* Type,
+AllocaInst* CreateEntryBlockAlloca(llvm::Function* TheFunction, Type* Type,
     const std::string& VarName, CodeGenerator& cg) {
     IRBuilder<> TmpB(&TheFunction->getEntryBlock(),
         TheFunction->getEntryBlock().begin());
@@ -23,46 +23,47 @@ AllocaInst* CreateEntryBlockAlloca(Function* TheFunction, Type* Type,
         VarName.c_str());
 }
 
-AllocaInst* CreateEntryBlockAlloca(Function* TheFunction,const std::string& TypeName,
+AllocaInst* CreateEntryBlockAlloca(llvm::Function* TheFunction,const std::string& TypeName,
     const std::string& VarName,CodeGenerator& cg) {
     return CreateEntryBlockAlloca(TheFunction, get_builtin_type(TypeName,cg), VarName, cg);
 }
 
-IntegerExprAST::IntegerExprAST(int v): val(v) {
+IntegerExprAST::IntegerExprAST(std::int64_t v):ExprAST("i32"), val(v) {
 }
 
 Value* IntegerExprAST::generateCode(CodeGenerator& cg) {
     return ConstantInt::get(cg.context(), APInt(32,val,true));
 }
 
-FloatExprAST::FloatExprAST(float v): val(v) {
+FloatExprAST::FloatExprAST(double v):ExprAST("double"), val(v) {
 }
 
 Value* FloatExprAST::generateCode(CodeGenerator& cg) {
     return ConstantFP::get(cg.context(), APFloat(val));
 }
 
-VariableExprAST::VariableExprAST(const std::string& n): name(n) {
+VariableExprAST::VariableExprAST(const std::string& n,const std::string& t)
+    :ExprAST(t), name(n) {
 }
 
 llvm::Value* VariableExprAST::generateCode(CodeGenerator& cg) {
-    auto v = cg.getValue(name);
+    auto v = cg.symbol().getValue(name);
     if (v.alloc == nullptr) {
         std::cout << "Unknown variable name: "<<name<<"." << std::endl;
         return nullptr;
     }
-    return cg.builder().CreateLoad(v.alloc,name.c_str());
+    return cg.builder().CreateLoad(v.alloc);
 
 }
 
 VariableDefAST::VariableDefAST(const std::string& type_name, const std::string& var_name,
                              std::unique_ptr<ExprAST> init_value)
-    : typename_(type_name), varname_(var_name),init_value_(std::move(init_value)) 
+    :ExprAST("void"), typename_(type_name), varname_(var_name),init_value_(std::move(init_value)) 
 {
 }
 
 VariableDefAST::VariableDefAST(const std::string& type_name, const std::string& var_name)
-    :typename_(type_name),varname_(var_name),init_value_(std::move(nullptr)) 
+    :ExprAST("void"), typename_(type_name),varname_(var_name),init_value_(std::move(nullptr)) 
 {
 }
 
@@ -78,13 +79,14 @@ llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
     auto alloca = CreateEntryBlockAlloca(F, typename_, varname_, cg);
     cg.builder().CreateStore(InitVal, alloca);
 
-    cg.setValue(varname_, Variable(varname_,typename_,alloca));
+    cg.symbol().setValue(varname_, Variable(varname_,typename_,alloca));
 
 }
 
-BinaryExprAST::BinaryExprAST(OperatorType op, std::unique_ptr<ExprAST> lhs,
-                             std::unique_ptr<ExprAST> rhs)
-    : Op(op), LHS(std::move(lhs)),RHS(std::move(rhs)) 
+BinaryExprAST::BinaryExprAST(OperatorType op,
+    std::unique_ptr<ExprAST> lhs, const std::string& ltype,
+    std::unique_ptr<ExprAST> rhs, const std::string& rtype)
+    :ExprAST(builtinOperatorReturnType(ltype,rtype,op)), Op(op), LHS(std::move(lhs)),RHS(std::move(rhs)),LType(ltype),RType(rtype) 
 {
 }
 
@@ -93,22 +95,28 @@ llvm::Value* BinaryExprAST::generateCode(CodeGenerator& cg) {
     auto R = RHS->generateCode(cg);
     if (!L || !R) return nullptr;
     Value* res=nullptr;
-    if (isAssignOperator(Op)) {
+    if (isCompoundAssignOperator(Op)) {
         VariableExprAST* LHSE = dynamic_cast<VariableExprAST*>(LHS.get());
         if (!LHSE)
             return LogError("destination of '=' must be a variable");
-
-        auto val = RHS->generateCode(cg);
-        if (!val) return nullptr;
-        auto var = cg.getValue(LHSE->getName());
+        auto op = compoundAssignToOperator(Op);
+        res = builtinTypeOperate(L, LType, R, RType, op, cg);
+        auto var = cg.symbol().getValue(LHSE->getName());
         if (!var.alloc) return LogError("Unknown variable name.");
-        cg.builder().CreateStore(val, var.alloc);
-        return val;
+        return cg.builder().CreateStore(res, var.alloc);;
 
-    } else {
-        res = cg.binOpGenCode(L, R, Op);
+    } else if(Op==OperatorType::Assignment)
+    {
+        VariableExprAST* LHSE = dynamic_cast<VariableExprAST*>(LHS.get());
+        if (!LHSE)
+            return LogError("destination of '=' must be a variable");
+        auto var = cg.symbol().getValue(LHSE->getName());
+        if (!var.alloc) return LogError("Unknown variable name.");
+        return cg.builder().CreateStore(R, var.alloc);;
     }
-    
+    else{
+        res = builtinTypeOperate(L, LType, R, RType, Op,cg);
+    }
     if(!res) {
         return LogError("No suitable operator.");
     }
@@ -116,7 +124,7 @@ llvm::Value* BinaryExprAST::generateCode(CodeGenerator& cg) {
 
 }
 
-ReturnAST::ReturnAST(std::unique_ptr<ExprAST> returnValue): ret_val_(std::move(returnValue)) 
+ReturnAST::ReturnAST(std::unique_ptr<ExprAST> returnValue):ExprAST("none"), ret_val_(std::move(returnValue)) 
 {
 }
 
@@ -128,7 +136,7 @@ Value* ReturnAST::generateCode(CodeGenerator& cg) {
 }
 
 llvm::Value* ForExprAST::generateCode(CodeGenerator& cg) {
-    ScopeGuard sg(cg);
+    ScopeGuard sg(cg.symbol());
     auto startval = Start->generateCode(cg);
     if (!startval) return nullptr;
     auto F = cg.builder().GetInsertBlock()->getParent();
@@ -150,8 +158,8 @@ llvm::Value* ForExprAST::generateCode(CodeGenerator& cg) {
 }
 
 CallExprAST::
-CallExprAST(const std::string& callee, std::vector<std::unique_ptr<ExprAST>> args)
-    : Callee(callee),Args(std::move(args)) 
+CallExprAST(const std::string& callee, std::vector<std::unique_ptr<ExprAST>> args, const std::string& t)
+    :ExprAST(t), Callee(callee),Args(std::move(args)) 
 {
 }
 
@@ -172,7 +180,7 @@ std::vector<std::unique_ptr<ExprAST>>& BlockExprAST::instructions()
 }
 
 llvm::Value* IfExprAST::generateCode(CodeGenerator& cg) {
-    ScopeGuard sg(cg);
+    ScopeGuard sg(cg.symbol());
     auto cond = Cond->generateCode(cg);
     if (!cond) return nullptr;
     auto& builder = cg.builder();
@@ -181,7 +189,7 @@ llvm::Value* IfExprAST::generateCode(CodeGenerator& cg) {
     }
     cond = builder.CreateICmpNE(cond,ConstantInt::get(cg.context(),
         APInt(static_cast<IntegerType*>(cond->getType())->getBitWidth(),0)), "ifcond");
-    Function* F = builder.GetInsertBlock()->getParent();
+    llvm::Function* F = builder.GetInsertBlock()->getParent();
     BasicBlock* ThenBB = BasicBlock::Create(cg.context(), "then", F);
     BasicBlock* ElseBB = BasicBlock::Create(cg.context(), "else");
     BasicBlock* MergeBB = BasicBlock::Create(cg.context(), "ifcont");
@@ -236,20 +244,20 @@ llvm::Value* CallExprAST::generateCode(CodeGenerator& cg) {
 llvm::Function* PrototypeAST::generateCode(CodeGenerator& cg) {
     std::vector<llvm::Type*> ArgT;
     for(auto& t:Args) {
-        auto type = get_builtin_type(t.first, cg);
+        auto type = get_builtin_type(t.type, cg);
         if(!type) return LogErrorF("Unknown type.");
         ArgT.push_back(type);
     }
     auto FT = FunctionType::get(get_builtin_type("i32",cg), ArgT, false);
-    auto F = Function::Create(FT, Function::ExternalLinkage, Name, cg.getModule());
+    auto F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, Name, cg.getModule());
     int i = 0;
     for (auto& arg : F->args())
-        arg.setName(Args[i++].second);
+        arg.setName(Args[i++].name);
     return F;
 }
 
 llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
-    ScopeGuard sg(cg);
+    ScopeGuard sg(cg.symbol());
     auto F = cg.getFunction(Proto->getName());
     if (!F) F = Proto->generateCode(cg);
     if (!F) return nullptr;
@@ -260,8 +268,8 @@ llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
     for(auto& Arg:F->args()) {
         auto alloca = CreateEntryBlockAlloca(F,Arg.getType(), Arg.getName(), cg);
         cg.builder().CreateStore(&Arg, alloca);
-        cg.setValue(Proto->Arg()[i].second, 
-            Variable(Proto->Arg()[i].second, Proto->Arg()[i].first,alloca));
+        cg.symbol().setValue(Proto->Arg()[i].name, 
+            Variable(Proto->Arg()[i].name, Proto->Arg()[i].type,alloca));
     }
     bool hasReturn = false;
     for(auto& i:Body->instructions()) {
@@ -285,6 +293,6 @@ llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
     if(verifyFunction(*F,&errs())) {
         std::cout << "something bad...\n";
     }
-    cg.FPM()->run(*F);
+    //cg.FPM()->run(*F);
     return F;
 }

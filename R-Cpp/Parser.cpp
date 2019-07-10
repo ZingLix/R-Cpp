@@ -40,7 +40,8 @@ std::unique_ptr<ExprAST> Parser::ParsePrimary() {
     if (cur_token_.type == TokenType::lParenthesis) {
         return ParseParenExpr();
     }
-    return LogError("Unexpected token.");
+    error("Unexpected token.");
+    return nullptr;
 }
 
 std::unique_ptr<ExprAST> Parser::ParseParenExpr() {
@@ -48,7 +49,10 @@ std::unique_ptr<ExprAST> Parser::ParseParenExpr() {
     getNextToken(); //eat (
     auto expr = ParseExpression();
     if (!expr) return nullptr;
-    if (cur_token_.type != TokenType::rParenthesis) return LogError("Expected ).");
+    if (cur_token_.type != TokenType::rParenthesis) {
+        error("Expected (.");
+        return nullptr;
+    }
     getNextToken(); //eat )
     return expr;
 }
@@ -56,13 +60,22 @@ std::unique_ptr<ExprAST> Parser::ParseParenExpr() {
 std::unique_ptr<ExprAST> Parser::ParseIdentifierExpr() {
     auto idname = cur_token_.content;
     getNextToken();
+    // is defining a identifier
     if (cur_token_.type == TokenType::Identifier) {
         return ParseVaribleDefinition(idname);
     }
+    // is only a identifier
     if (cur_token_.type != TokenType::lParenthesis) {
-        return std::make_unique<VariableExprAST>(idname);;
+        auto var = symbol_->getValue(idname);
+        if(var.name=="")
+        {
+            error("Unknown identifier.");
+            return nullptr;
+        }
+        return std::make_unique<VariableExprAST>(idname,var.type);;
     }
-    getNextToken();
+    // is calling a function
+    getNextToken();      // eat (
     std::vector<std::unique_ptr<ExprAST>> args;
     if (cur_token_.type != TokenType::rParenthesis) {
         while (true) {
@@ -72,47 +85,55 @@ std::unique_ptr<ExprAST> Parser::ParseIdentifierExpr() {
                 return nullptr;
             }
             if (cur_token_.type == TokenType::rParenthesis) break;
-            if (cur_token_.type != TokenType::Comma) return LogError("Expected , or ).");
+            if (cur_token_.type != TokenType::Comma)
+            {
+                error("Expected , or ).");
+                return nullptr;
+            }
             getNextToken();
         }
     }
     getNextToken();
-    return std::make_unique<CallExprAST>(idname, std::move(args));
+    //TODO: Check whether exists valid function
+    return std::make_unique<CallExprAST>(idname, std::move(args),symbol_->getFunction(idname).returnType);
 }
 
 std::unique_ptr<ExprAST> Parser::ParseForExpr() {
+    ScopeGuard sg(*symbol_);
     getNextToken(); //eat for
     if(cur_token_.type!=TokenType::lParenthesis) {
-        return LogError("Expected (.");
+        error("Expected ( after a for loop.");
+        return nullptr;
     }
     getNextToken(); //eat (
     auto start = ParseExpression();
     if(cur_token_.type!=TokenType::Semicolon) {
-        return LogError("Expected ;");
+        error("Expected ; to split for expression.");
+        return nullptr;
     }
     getNextToken(); //eat ;
     auto cond = ParseExpression();
     if (cur_token_.type != TokenType::Semicolon) {
-        return LogError("Expected ;");
+        error("Expected ; to split for expression.");
+        return nullptr;
     }
     getNextToken(); //eat ;
     auto end = ParseExpression();
     if (cur_token_.type != TokenType::rParenthesis) {
-        return LogError("Expected )");
+        error("Expected ) to end for condition.");
+        return nullptr;
     }
     getNextToken(); //eat )
-    //if(cur_token_.type!=TokenType::lBrace) {
-    //    return LogError("Expected {");
-    //}
     auto body = ParseBlock();
     return std::make_unique<ForExprAST>(std::move(start), std::move(cond), std::move(end), std::move(body));
 }
 
-
 std::unique_ptr<ExprAST> Parser::ParseVaribleDefinition(const std::string& type_name) {
     auto varname = cur_token_.content;
+    symbol_->setValue(varname, Variable(varname, type_name));
     getNextToken();
     if (cur_token_.type == TokenType::Equal) {
+        // definition with initiate value
         getNextToken();
         auto E = ParseExpression();
         return std::make_unique<VariableDefAST>(type_name, varname, std::move(E));
@@ -120,7 +141,8 @@ std::unique_ptr<ExprAST> Parser::ParseVaribleDefinition(const std::string& type_
     if (cur_token_.type == TokenType::Semicolon) {
         return std::make_unique<VariableDefAST>(type_name, varname);
     }
-    return LogError("Expected expression or ;.");
+    error("Expected initiate value or ;.");
+    return nullptr;
 }
 
 std::unique_ptr<ExprAST> Parser::ParseReturnExpr() {
@@ -128,7 +150,8 @@ std::unique_ptr<ExprAST> Parser::ParseReturnExpr() {
     auto retval = ParseExpression();
     if (retval != nullptr) return std::make_unique<ReturnAST>(std::move(retval));
     getNextToken();
-    return LogError("Invalid return value.");
+    error("Invalid return value.");
+    return nullptr;
 }
 
 std::unique_ptr<ExprAST> Parser::ParseExpression() {
@@ -148,15 +171,20 @@ std::unique_ptr<ExprAST> Parser::ParseExpression() {
         {
             while (getBinOperatorPrecedence(op) < getBinOperatorPrecedence(ops.top()))
             {
-                if (expr.empty()) return LogError("Incomplete expression.");
+                if (expr.empty()) {
+                    error("Incomplete expression.");
+                    return nullptr;
+                }
                 auto r = std::move(expr.top());
                 expr.pop();
-                if (expr.empty()) return LogError("Incomplete expression.");
-                auto l = std::move(expr.top());
+                if (expr.empty()) {
+                    error("Incomplete expression.");
+                    return nullptr;
+                }                auto l = std::move(expr.top());
                 expr.pop();
                 auto o = ops.top();
                 ops.pop();
-                auto e = std::make_unique<BinaryExprAST>(o, std::move(l), std::move(r));
+                auto e = std::make_unique<BinaryExprAST>(o, std::move(l),l->getType(), std::move(r),r->getType());
                 expr.push(std::move(e));
             }
         }
@@ -165,15 +193,21 @@ std::unique_ptr<ExprAST> Parser::ParseExpression() {
     }
     while (ops.top()!=OperatorType::None)
     {
-        if (expr.empty()) return LogError("Incomplete expression.");
+        if (expr.empty()) {
+            error("Incomplete expression.");
+            return nullptr;
+        }
         auto r = std::move(expr.top());
         expr.pop();
-        if (expr.empty()) return LogError("Incomplete expression.");
+        if (expr.empty()) {
+            error("Incomplete expression.");
+            return nullptr;
+        }
         auto l = std::move(expr.top());
         expr.pop();
         auto o = ops.top();
         ops.pop();
-        auto e = std::make_unique<BinaryExprAST>(o, std::move(l), std::move(r));
+        auto e = std::make_unique<BinaryExprAST>(o, std::move(l),l->getType(), std::move(r),r->getType());
         expr.push(std::move(e));
     }
     return std::move(expr.top());
@@ -287,27 +321,6 @@ OperatorType Parser::getNextBinOperator()
     return TokenToBinOperator(first);
 }
 
-
-//std::unique_ptr<ExprAST> Parser::ParseBinOpRHS(int ExprPrec, std::unique_ptr<ExprAST> LHS) {
-//    while (true) {
-//        int TokPrec = GetTokPrecedence();
-//        if (TokPrec < ExprPrec)
-//            return LHS;
-//        auto BinOp = getNextBinOperator();
-//        auto RHS = ParsePrimary();
-//        if (!RHS)
-//            return nullptr;
-//        int NextPrec = GetTokPrecedence();
-//        if (TokPrec < NextPrec) {
-//            RHS = ParseBinOpRHS(TokPrec + 1, std::move(RHS));
-//            if (!RHS)
-//                return nullptr;
-//        }
-//        LHS = std::make_unique<BinaryExprAST>(BinOp, std::move(LHS),
-//                                              std::move(RHS));
-//    }
-//}
-
 std::unique_ptr<ExprAST> Parser::ParseIfExpr() {
     getNextToken();  // eat if
     auto cond = ParseParenExpr();
@@ -331,32 +344,64 @@ std::unique_ptr<ExprAST> Parser::ParseIfExpr() {
 
 std::unique_ptr<PrototypeAST> Parser::ParsePrototype() {
     if (cur_token_.type != TokenType::Identifier)
-        return LogErrorP("Expected function name in prototype");
+    {
+        error("Expected function name in prototype");
+        return nullptr;
+    }
+
 
     std::string FnName = cur_token_.content;
     getNextToken();
 
-    if (cur_token_.type != TokenType::lParenthesis)
-        return LogErrorP("Expected '(' in prototype");
+    if (cur_token_.type != TokenType::lParenthesis) {
+        error("Expected '(' in prototype");
+        return nullptr;
+    }
 
     // Read the list of argument names.
-    std::vector<std::pair<std::string, std::string>> ArgNames;
+    std::vector<Variable> ArgNames;
+    // std::vector<std::pair<std::string, std::string>> ArgNames;
     while (getNextToken().type == TokenType::Identifier) {
         auto type_name = cur_token_.content;
         getNextToken();
-        ArgNames.emplace_back(type_name, cur_token_.content);
+        ArgNames.emplace_back(cur_token_.content,type_name);
         getNextToken();
         if (cur_token_.type == TokenType::rParenthesis) break;
         if (cur_token_.type != TokenType::Comma)
-            return LogErrorP("Expected ,");
+        {
+            error("Expected , to split arguments.");
+            return nullptr;
+        }
     }
 
-    if (cur_token_.type != TokenType::rParenthesis)
-        return LogErrorP("Expected ')' in prototype");
+    if (cur_token_.type != TokenType::rParenthesis) {
+        error("Expected ')' in prototype");
+        return nullptr;
+    }
 
-    // success.
     getNextToken(); // eat ')'.
-
+    std::string retType;
+    if(cur_token_.type==TokenType::Minus)
+    {
+        auto op = getNextBinOperator();
+        if(op!=OperatorType::MemberAccessA)
+        {
+            error("Unexpected symbol.");
+            return nullptr;
+        }
+        if(cur_token_.type!=TokenType::Identifier||!symbol_->hasType(cur_token_.content))
+        {
+            error("Unknown type.");
+            return nullptr;
+        }
+        retType = cur_token_.content;
+        getNextToken();
+    }else if(cur_token_.type!=TokenType::lBrace)
+    {
+        error("Return value must be pointed out explicitly when declaring a function prototype.");
+        return nullptr;
+    }
+    symbol_->addFunction(FnName, Function(FnName, ArgNames, retType));
     return std::make_unique<PrototypeAST>(FnName, std::move(ArgNames));
 }
 
@@ -377,12 +422,13 @@ std::unique_ptr<BlockExprAST> Parser::ParseBlock() {
 
     while (cur_token_.type != TokenType::rBrace && cur_token_.type != TokenType::Eof) {
         auto E = ParseStatement();
-        if (E != nullptr) body.emplace_back(std::move(E));
+        if (!E) return nullptr;
+        body.emplace_back(std::move(E));
         if(cur_token_.type==TokenType::Semicolon)
         getNextToken(); // eat ;
     }
     if (cur_token_.type != TokenType::rBrace) {
-        LogError("Expected }.");
+        error("Expected }.");
         return nullptr;
     }
     getNextToken(); //eat }
@@ -390,11 +436,16 @@ std::unique_ptr<BlockExprAST> Parser::ParseBlock() {
 }
 
 std::unique_ptr<FunctionAST> Parser::ParseDefinition() {
+    ScopeGuard sg(*symbol_);
     getNextToken(); // eat fn.
     auto Proto = ParsePrototype();
     if (!Proto) return nullptr;
+    for(auto it:Proto->Arg())
+    {
+        symbol_->setValue(it.name, Variable(it.name, it.type));
+    }
     if (cur_token_.type != TokenType::lBrace) {
-        std::cout << "Expected {." << std::endl;
+        error("Expected { or ;.");
         return nullptr;
     }
     auto body = ParseBlock();
@@ -438,16 +489,12 @@ std::vector<std::unique_ptr<FunctionAST>>& Parser::AST() {
     return expr_;
 }
 
-std::unique_ptr<ExprAST> Parser::LogError(const std::string& errmsg) {
-    std::cout << errmsg << std::endl;
-    return nullptr;
-}
-
-std::unique_ptr<PrototypeAST> Parser::LogErrorP(const std::string& errmsg) {
-    std::cout << errmsg << std::endl;
-    return nullptr;
-}
-
 Token& Parser::getNextToken() {
     return cur_token_ = lexer_.nextToken();
+}
+
+void Parser::error(const std::string& errmsg)
+{
+    std::cout << lexer_.getLineNo() << "." << lexer_.getCharNo() << ":\t";
+    std::cout << errmsg << std::endl;
 }
