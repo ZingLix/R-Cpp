@@ -17,14 +17,9 @@
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
-#include "llvm/Transforms/Utils.h"
-#include "llvm/Support/TargetSelect.h"
-#include "llvm/Support/TargetRegistry.h"
-#include "llvm/Target/TargetOptions.h"
-#include "llvm/Target/TargetMachine.h"
-#include "llvm/Support/FileSystem.h"
+#include "Type.h"
 #include "Operator.h"
-#include "Variable.h"
+#include "Type.h"
 #include <iostream>
 
 class CodeGenerator
@@ -34,6 +29,7 @@ public:
         :Builder(TheContext),TheModule(std::make_unique<llvm::Module>("RCpp",context())),
         TheFPM(std::make_unique<llvm::legacy::FunctionPassManager>(TheModule.get())) 
     {
+        NamedValues.emplace_back();
         // Promote allocas to registers.
         TheFPM->add(llvm::createPromoteMemoryToRegisterPass());
         // Do simple "peephole" optimizations and bit-twiddling optzns.
@@ -52,12 +48,18 @@ public:
         return TheContext;
     }
 
-    Variable& getValue(const std::string& name) {
-        return NamedValues[name];
+
+    Variable getValue(const std::string& name) {
+        for(auto it=NamedValues.rbegin();it!=NamedValues.rend();++it)
+        {
+            auto t = it->find(name);
+            if (t != it->end()) return t->second;
+        }
+        return Variable();
     }
 
-    void setValue(const std::string& name,const std::string& type, llvm::AllocaInst* val) {
-        NamedValues[name] = Variable(name,type,val);
+    void setValue(const std::string& name, Variable val) {
+        NamedValues.back()[name] = val;
     }
 
     void clearValue() {
@@ -83,6 +85,16 @@ public:
     llvm::Value* binOpGenCode(llvm::Value* LHS, llvm::Value* RHS, OperatorType op,const std::string& LHSName="");
     void output();
 
+    void createNewScope()
+    {
+        NamedValues.emplace_back();
+    }
+
+    void destoryScope()
+    {
+        NamedValues.pop_back();
+    }
+
 private:
     llvm::Value* binOpGenCode_builtin(llvm::Value* LHS, llvm::Value* RHS, OperatorType op, const std::string& LHSName);
     llvm::Value* assign(const std::string& varname, llvm::Value* val);
@@ -91,6 +103,23 @@ private:
     llvm::IRBuilder<> Builder;
     std::unique_ptr<llvm::Module> TheModule;
     std::unique_ptr<llvm::legacy::FunctionPassManager> TheFPM;
-    std::map<std::string, Variable> NamedValues;
+    std::vector<std::map<std::string, Variable>> NamedValues;
 };
 
+class ScopeGuard
+{
+public:
+    ScopeGuard(CodeGenerator& cg)
+        :cg_(cg)
+    {
+        cg_.createNewScope();
+    }
+
+    ~ScopeGuard()
+    {
+        cg_.destoryScope();
+    }
+
+private:
+    CodeGenerator& cg_;
+};

@@ -1,4 +1,5 @@
 #include "Type.h"
+#include "CodeGenerator.h"
 
 llvm::Type* get_builtin_type(const std::string& s, CodeGenerator& cg) {
     if (s == "i32") return llvm::Type::getInt32Ty(cg.context());

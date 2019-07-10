@@ -1,7 +1,9 @@
 #include "Lexer.h"
 using namespace std;
 
-Lexer::Lexer(const string& filename): fstream_(filename, fstream_.in), lastChar_(' ')
+Lexer::Lexer(const string& filename)
+    : fstream_(filename, fstream_.in), lastChar_(' '),
+    lineCount(0),charCount(0)
 {
     if (!fstream_.is_open())
         throw std::runtime_error("Failed to open " + filename + ".");
@@ -102,4 +104,12 @@ Token Lexer::nextCharacter()
 void Lexer::getNextChar()
 {
     lastChar_ = fstream_.get();
+    if(lastChar_=='\n')
+    {
+        lineCount++;
+        charCount = 0;
+    }else
+    {
+        charCount++;
+    }
 }

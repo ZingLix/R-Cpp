@@ -1,5 +1,11 @@
 #include "CodeGenerator.h"
 #include "Type.h"
+#include "llvm/Transforms/Utils.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/TargetRegistry.h"
+#include "llvm/Target/TargetOptions.h"
+#include "llvm/Target/TargetMachine.h"
+#include "llvm/Support/FileSystem.h"
 
 llvm::Value* CodeGenerator::binOpGenCode(llvm::Value* LHS, llvm::Value* RHS, OperatorType op, const std::string& LHSName) {
     if(is_builtin_type(LHS->getType()->getTypeID())
@@ -135,7 +141,7 @@ llvm::Value* CodeGenerator::binOpGenCode_builtin(llvm::Value* LHS, llvm::Value* 
 }
 
 llvm::Value* CodeGenerator::assign(const std::string& varname, llvm::Value* val) {
-    auto var = getValue(varname).val;
+    auto var = getValue(varname).alloc;
     if (llvm::isa<llvm::ConstantInt>(val)) {
         val = llvm::ConstantInt::get(val->getType(),
             llvm::APInt(var->getAllocatedType()->getIntegerBitWidth(),

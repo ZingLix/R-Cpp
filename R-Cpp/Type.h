@@ -1,13 +1,23 @@
 #pragma once
 #include <string>
 #include <llvm/IR/Type.h>
-#include "CodeGenerator.h"
+#include <llvm/IR/Instructions.h>
 
-//enum class Type
-//{
-//    i32,i64,u32,u64,Bool,Float,Double,none
-//};
-//
+class CodeGenerator;
+
+struct Variable
+{
+    Variable() :alloc(nullptr){}
+    Variable(const std::string& n,const std::string& t,llvm::AllocaInst* a,bool isCons=false)
+        :name(n),type(t),alloc(a),isConst(isCons)
+    { }
+
+    std::string name;
+    std::string type;
+    llvm::AllocaInst* alloc;
+    bool isConst;
+};
+
 llvm::Type* get_builtin_type(const std::string& s, CodeGenerator& cg);
 
 llvm::Value* get_builtin_type_default_value(const std::string& s, CodeGenerator& cg);

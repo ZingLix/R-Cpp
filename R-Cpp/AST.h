@@ -155,6 +155,10 @@ public:
     }
     ~PrototypeAST() {}
     const std::string& getName() const { return Name; }
+    std::vector<std::pair<std::string, std::string>>& Arg()
+    {
+        return Args;
+    }
     llvm::Function* generateCode(CodeGenerator& cg);
 };
 
