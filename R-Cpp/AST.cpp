@@ -47,8 +47,11 @@ VariableExprAST::VariableExprAST(const std::string& n): name(n) {
 
 llvm::Value* VariableExprAST::generateCode(CodeGenerator& cg) {
     auto v = cg.getValue(name);
-    if (v == nullptr) std::cout << "Unknown variable name." << std::endl;
-    return cg.builder().CreateLoad(v,name.c_str());
+    if (v.alloc == nullptr) {
+        std::cout << "Unknown variable name: "<<name<<"." << std::endl;
+        return nullptr;
+    }
+    return cg.builder().CreateLoad(v.alloc,name.c_str());
 }
 
 VariableDefAST::VariableDefAST(const std::string& type_name, const std::string& var_name,
@@ -73,7 +76,7 @@ llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
     }
     auto alloca = CreateEntryBlockAlloca(F, typename_, varname_, cg);
     cg.builder().CreateStore(InitVal, alloca);
-    cg.setValue(varname_, alloca);
+    cg.setValue(varname_, Variable(varname_,typename_,alloca));
 }
 
 BinaryExprAST::BinaryExprAST(OperatorType op, std::unique_ptr<ExprAST> lhs,
@@ -90,8 +93,8 @@ llvm::Value* BinaryExprAST::generateCode(CodeGenerator& cg) {
         auto val = RHS->generateCode(cg);
         if (!val) return nullptr;
         auto var = cg.getValue(LHSE->getName());
-        if (!var) return LogError("Unknown variable name.");
-        cg.builder().CreateStore(val, var);
+        if (!var.alloc) return LogError("Unknown variable name.");
+        cg.builder().CreateStore(val, var.alloc);
         return val;
     }
     auto L = LHS->generateCode(cg);
@@ -117,6 +120,7 @@ Value* ReturnAST::generateCode(CodeGenerator& cg) {
 }
 
 llvm::Value* ForExprAST::generateCode(CodeGenerator& cg) {
+    ScopeGuard sg(cg);
     auto startval = Start->generateCode(cg);
     if (!startval) return nullptr;
     auto F = cg.builder().GetInsertBlock()->getParent();
@@ -162,6 +166,7 @@ std::vector<std::unique_ptr<ExprAST>>& BlockExprAST::instructions()
 }
 
 llvm::Value* IfExprAST::generateCode(CodeGenerator& cg) {
+    ScopeGuard sg(cg);
     auto cond = Cond->generateCode(cg);
     if (!cond) return nullptr;
     auto& builder = cg.builder();
@@ -234,17 +239,19 @@ llvm::Function* PrototypeAST::generateCode(CodeGenerator& cg) {
 }
 
 llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
+    ScopeGuard sg(cg);
     auto F = cg.getFunction(Proto->getName());
     if (!F) F = Proto->generateCode(cg);
     if (!F) return nullptr;
     if (!F->empty()) return LogErrorF("Cannot redefine function.");
     BasicBlock* BB = BasicBlock::Create(cg.context(), "entry", F);
     cg.builder().SetInsertPoint(BB);
-    cg.clearValue();
+    int i = 0;
     for(auto& Arg:F->args()) {
         auto alloca = CreateEntryBlockAlloca(F,Arg.getType(), Arg.getName(), cg);
         cg.builder().CreateStore(&Arg, alloca);
-        cg.setValue(Arg.getName(), alloca);
+        cg.setValue(Proto->Arg()[i].second, 
+            Variable(Proto->Arg()[i].second, Proto->Arg()[i].first,alloca));
     }
     Body->generateCode(cg);
     if(verifyFunction(*F,&errs())) {

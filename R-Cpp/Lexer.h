@@ -18,4 +18,5 @@ private:
 
     std::fstream fstream_;
     char lastChar_;
+    int lineCount, charCount;
 };

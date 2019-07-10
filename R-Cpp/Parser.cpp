@@ -1,4 +1,5 @@
 #include "Parser.h"
+#include <stack>
 #include <iostream>
 
 std::unique_ptr<ExprAST> Parser::ParseIntegerExpr() {

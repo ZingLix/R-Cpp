@@ -1,5 +1,11 @@
 #include "CodeGenerator.h"
 #include "Type.h"
+#include "llvm/Transforms/Utils.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/TargetRegistry.h"
+#include "llvm/Target/TargetOptions.h"
+#include "llvm/Target/TargetMachine.h"
+#include "llvm/Support/FileSystem.h"
 
 llvm::Value* CodeGenerator::binOpGenCode(llvm::Value* LHS, llvm::Value* RHS, OperatorType op) {
     if(is_builtin_type(LHS->getType()->getTypeID())
