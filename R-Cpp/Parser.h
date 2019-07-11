@@ -26,11 +26,13 @@ public:
     std::unique_ptr<PrototypeAST> ParsePrototype();
     std::unique_ptr<FunctionAST> ParseDefinition();
     std::unique_ptr<BlockExprAST> ParseBlock();
+    std::unique_ptr<ClassAST> ParseClass();
 
     void HandleDefinition();
+    void HandleClass();
     void MainLoop();
     std::vector<std::unique_ptr<FunctionAST>>& AST();
-
+    std::vector<std::unique_ptr<ClassAST>>& Classes();
 private:
     Token& getNextToken();
     OperatorType getNextBinOperator();
@@ -39,5 +41,6 @@ private:
     Lexer lexer_;
     Token cur_token_;
     std::vector<std::unique_ptr<FunctionAST>> expr_;
+    std::vector<std::unique_ptr<ClassAST>> class_;
     std::shared_ptr<SymbolTable> symbol_;
 };

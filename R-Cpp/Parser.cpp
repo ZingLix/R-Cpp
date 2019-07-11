@@ -466,6 +466,58 @@ void Parser::HandleDefinition() {
     }
 }
 
+std::unique_ptr<ClassAST> Parser::ParseClass()
+{
+    getNextToken();  // eat class
+    if(cur_token_.type!=TokenType::Identifier)
+    {
+        error("Expected class name.");
+        return nullptr;
+    }
+    auto className = cur_token_.content;
+    Class c(className);
+    getNextToken();
+    if(cur_token_.type!=TokenType::lBrace)
+    {
+        error("Expect class body.");
+        return nullptr;
+    }
+    getNextToken(); // eat ;
+    while (cur_token_.type!=TokenType::rBrace)
+    {
+        if(cur_token_.type==TokenType::Identifier)
+        {
+            auto type = cur_token_.content;
+            getNextToken();
+            auto res = ParseVaribleDefinition(type);
+            auto var = dynamic_cast<VariableDefAST*>(res.get());
+            if(!var)
+            {
+                error("Unknown error.");
+                return nullptr;
+            }
+            c.memberVariables.emplace_back(var->getVarName(), var->getVarType());
+        }
+        if (cur_token_.type == TokenType::Semicolon) getNextToken();
+    }
+    symbol_->addClass(className,c);
+    return std::make_unique<ClassAST>(c);
+}
+
+void Parser::HandleClass()
+{
+    auto c = ParseClass();
+    if(c)
+    {
+        fprintf(stderr, "Parsed a class.\n");
+        class_.push_back(std::move(c));
+    }else
+    {
+        getNextToken();
+    }
+}
+
+
 void Parser::MainLoop() {
     while (1) {
         switch (cur_token_.type) {
@@ -476,6 +528,9 @@ void Parser::MainLoop() {
             break;
         case TokenType::Function:
             HandleDefinition();
+            break;
+        case TokenType::Class:
+            HandleClass();
             break;
         default:
             getNextToken();
@@ -497,4 +552,9 @@ void Parser::error(const std::string& errmsg)
 {
     std::cout << lexer_.getLineNo() << "." << lexer_.getCharNo() << ":\t";
     std::cout << errmsg << std::endl;
+}
+
+std::vector<std::unique_ptr<ClassAST>>& Parser::Classes()
+{
+    return class_;
 }

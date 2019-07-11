@@ -3,18 +3,19 @@
 
 SymbolTable::SymbolTable()
 {
-    NamedValues.emplace_back();
-    NamedFunctions.emplace_back();
+    createNewScope();
 }
 
 void SymbolTable::createNewScope()
 {
     NamedValues.emplace_back();
     NamedFunctions.emplace_back();
+    NamedClass.emplace_back();
 }
 
 void SymbolTable::destroyScope()
 {
+    NamedClass.pop_back();
     NamedFunctions.pop_back();
     NamedValues.pop_back();
 }
@@ -51,4 +52,33 @@ void SymbolTable::addFunction(const std::string& name, ::Function func)
 
 bool SymbolTable::hasType(const std::string& name) {
     return is_builtin_type(name);
+}
+
+void SymbolTable::addClass(const std::string& name, Class c)
+{
+    NamedClass.back()[name] = c;
+}
+
+Class SymbolTable::getClass(const std::string& name)
+{
+    for(auto it=NamedClass.rbegin();it!=NamedClass.rend();++it)
+    {
+        auto t = it->find(name);
+        if (t != it->end()) return t->second;
+    }
+    return Class("");
+}
+
+
+llvm::Type* SymbolTable::getType(const std::string& name)
+{
+    return getClass(name).type;
+}
+
+void SymbolTable::setType(const std::string& name, llvm::Type* type)
+{
+    for (auto it = NamedClass.rbegin(); it != NamedClass.rend(); ++it) {
+        auto t = it->find(name);
+        if (t != it->end()) (t->second).type=type;
+    }
 }

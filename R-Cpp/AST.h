@@ -98,6 +98,8 @@ public:
 
     VariableDefAST(const std::string& type_name, const std::string& var_name);
     llvm::Value* generateCode(CodeGenerator& cg) override;
+    std::string getVarType() { return typename_; }
+    std::string getVarName() { return varname_; }
 
 private:
     std::string typename_;
@@ -184,4 +186,18 @@ public:
     }
     ~FunctionAST() {}
     llvm::Function* generateCode(CodeGenerator& cg);
+};
+
+class ClassAST
+{
+    Class c;
+    // std::vector<std::unique_ptr<ExprAST>> Body;
+
+public:
+    ClassAST(const Class& clas)
+        : c(clas)
+    {
+    }
+
+    llvm::StructType* generateCode(CodeGenerator& cg);
 };

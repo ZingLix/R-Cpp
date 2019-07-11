@@ -13,6 +13,10 @@ int main(int argc,char **argv)
     Parser l("/home/zinglix/example.txt");
     l.MainLoop();
     CodeGenerator cg;
+    for (auto& expr : l.Classes()) {
+        expr->generateCode(cg)->print(llvm::errs());
+        cout << endl;
+    }
     for(auto& expr:l.AST()) {
         expr->generateCode(cg)->print(llvm::errs());
         cout << endl;

@@ -296,3 +296,20 @@ llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
     //cg.FPM()->run(*F);
     return F;
 }
+
+llvm::StructType* ClassAST::generateCode(CodeGenerator& cg)
+{
+    auto type = StructType::create(cg.context(), c.name);
+    cg.symbol().addClass(c.name, c);
+    std::vector<Type*> members;
+    for(auto m:c.memberVariables)
+    {
+        auto t = get_builtin_type(m.type, cg);
+        if (!t)
+            members.push_back(cg.symbol().getType(m.type));
+        else members.push_back(t);
+    }
+    type->setBody(members);
+    cg.symbol().setType(c.name,type);
+    return type;
+}

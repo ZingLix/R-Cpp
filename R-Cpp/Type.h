@@ -33,6 +33,20 @@ struct Function
     llvm::Function* alloc;
 };
 
+struct Class
+{
+    Class(){}
+
+    Class(const std::string& n)
+        :name(n){
+    }
+
+    std::string name;
+    std::vector<Variable> memberVariables;
+    std::vector<::Function> memberFunctions;
+    llvm::Type* type;
+};
+
 llvm::Type* get_builtin_type(const std::string& s, CodeGenerator& cg);
 
 llvm::Value* get_builtin_type_default_value(const std::string& s, CodeGenerator& cg);
