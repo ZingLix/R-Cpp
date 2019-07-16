@@ -87,7 +87,7 @@ llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
 BinaryExprAST::BinaryExprAST(OperatorType op,
     std::unique_ptr<ExprAST> lhs, const std::string& ltype,
     std::unique_ptr<ExprAST> rhs, const std::string& rtype)
-    :ExprAST(builtinOperatorReturnType(ltype,rtype,op)), Op(op), LHS(std::move(lhs)),RHS(std::move(rhs)),LType(ltype),RType(rtype) 
+    :ExprAST(builtinOperatorReturnType(ltype,rtype,op)), Op(op), LHS(std::move(lhs)),RHS(std::move(rhs)),LType(LHS->getType()),RType(RHS->getType()) 
 {
 }
 
@@ -160,9 +160,15 @@ llvm::Value* ForExprAST::generateCode(CodeGenerator& cg) {
 
 CallExprAST::
 CallExprAST(const std::string& callee, std::vector<std::unique_ptr<ExprAST>> args, const std::string& t)
-    :ExprAST(t), Callee(callee),Args(std::move(args)) 
+    :ExprAST(t), Callee(callee),Args(std::move(args)),thisPtr(nullptr)
 {
 }
+
+void CallExprAST::setThis(class Value* This)
+{
+    thisPtr = This;
+}
+
 
 llvm::Value* BlockExprAST::generateCode(CodeGenerator& cg) {
     Value* ret = nullptr;
@@ -231,10 +237,11 @@ llvm::Value* CallExprAST::generateCode(CodeGenerator& cg) {
     auto CalleeF = cg.getFunction(Callee);
     if (!CalleeF) return LogError("Unknown function referenced.");
 
-    if (CalleeF->arg_size() != Args.size())
+    if (CalleeF->arg_size() != Args.size()+(thisPtr==nullptr?0:1))
         return LogError("Arguments count mismatch.");
 
     std::vector<Value*> Argv;
+    if (thisPtr) Argv.push_back(thisPtr);
     for(unsigned i=0;i<Args.size();++i) {
         Argv.push_back(Args[i]->generateCode(cg));
         if(!Argv.back()) return nullptr;
@@ -244,16 +251,24 @@ llvm::Value* CallExprAST::generateCode(CodeGenerator& cg) {
 
 llvm::Function* PrototypeAST::generateCode(CodeGenerator& cg) {
     std::vector<llvm::Type*> ArgT;
+    if (ClassName != "") Args.push_back(Variable("this",ClassName));
     for(auto& t:Args) {
-        auto type = get_builtin_type(t.type, cg);
+        auto type = cg.symbol().getType(t.type);
+        if (!type) type = get_builtin_type(t.type,cg);
         if(!type) return LogErrorF("Unknown type.");
-        ArgT.push_back(type);
+        if (t.name == "this") ArgT.push_back(PointerType::get(cg.symbol().getType(ClassName), 32));
+        else ArgT.push_back(type);
     }
     auto FT = FunctionType::get(get_builtin_type("i32",cg), ArgT, false);
     auto F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, Name, cg.getModule());
     int i = 0;
     for (auto& arg : F->args())
+    {
+     /*   if (i == 0 && ClassName != "") arg.setName("this");
+        else    arg.setName(Args[i++].name);*/
         arg.setName(Args[i++].name);
+    }
+        
     return F;
 }
 
@@ -273,6 +288,24 @@ llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
             Variable(Proto->Arg()[i].name, Proto->Arg()[i].type,alloca));
     }
     bool hasReturn = false;
+    if(getClassName()!="")
+    {
+        auto c = cg.symbol().getClass(getClassName());
+        int i = 0;
+        for(auto& v:c.memberVariables)
+        {
+            Value* index = ConstantInt::get(cg.context(),
+                APInt(32, i++));
+            Value* data = cg.symbol().getValue("this").alloc;
+            data = cg.builder().CreateLoad(data);
+            std::vector<llvm::Value*> indices(2);
+            indices[0] = llvm::ConstantInt::get(cg.context(), llvm::APInt(32, 0, true));
+            indices[1] = index;
+            Value* ptr = cg.builder().CreateGEP(data, indices, "memberptr");
+            cg.symbol().setValue(v.name, Variable(v.name, v.type, static_cast<AllocaInst*>(ptr)));
+        }
+        
+    }
     for(auto& i:Body->instructions()) {
         i->generateCode(cg);
         if(dynamic_cast<ReturnAST*>(i.get())!=nullptr) {
@@ -312,6 +345,10 @@ llvm::StructType* ClassAST::generateCode(CodeGenerator& cg)
     }
     type->setBody(members);
     cg.symbol().setType(c.name,type);
+    //for(auto fn:c.memberFunctions)
+    //{
+    //    cg.symbol().getFunction(fn.name)
+    //}
     return type;
 }
 
@@ -324,15 +361,27 @@ MemberAccessAST::MemberAccessAST(std::unique_ptr<ExprAST> Var, std::unique_ptr<E
 llvm::Value* MemberAccessAST::generateCode(CodeGenerator& cg)
 {
     auto mem = dynamic_cast<VariableExprAST*>(member.get());
-    if (!mem) return nullptr;
-    Value* index = ConstantInt::get(cg.context(),
-        APInt(32, cg.symbol().getClassMemberIndex(var->getType(), mem->getName())));
-    Value* data = var->generateCode(cg);
-    std::vector<llvm::Value*> indices(2);
-    indices[0] = llvm::ConstantInt::get(cg.context(), llvm::APInt(32, 0, true));
-    indices[1] = index;
-    alloca_ = cg.symbol().getValue(dynamic_cast<VariableExprAST*>(var.get())->getName()).alloc;
-    Value* ptr = cg.builder().CreateGEP(alloca_, indices, "memberptr");
-    alloca_ = static_cast<AllocaInst*>(ptr);
-    return cg.builder().CreateLoad(ptr);
+    if (mem) {
+        Value* index = ConstantInt::get(cg.context(),
+            APInt(32, cg.symbol().getClassMemberIndex(var->getType(), mem->getName())));
+        Value* data = var->generateCode(cg);
+        std::vector<llvm::Value*> indices(2);
+        indices[0] = llvm::ConstantInt::get(cg.context(), llvm::APInt(32, 0, true));
+        indices[1] = index;
+        alloca_ = cg.symbol().getValue(dynamic_cast<VariableExprAST*>(var.get())->getName()).alloc;
+        Value* ptr = cg.builder().CreateGEP(alloca_, indices, "memberptr");
+        alloca_ = static_cast<AllocaInst*>(ptr);
+        type = cg.symbol().getValue(mem->getName()).type;
+        return cg.builder().CreateLoad(ptr);
+    }
+    auto func = dynamic_cast<CallExprAST*>(member.get());
+    if(func)
+    {
+        alloca_ = cg.symbol().getValue(dynamic_cast<VariableExprAST*>(var.get())->getName()).alloc;
+
+        func->setThis(alloca_);
+        type = func->getType();
+        return member->generateCode(cg);
+    }
+    return nullptr;
 }

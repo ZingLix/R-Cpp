@@ -22,7 +22,7 @@ public:
     std::unique_ptr<ExprAST> ParseIfExpr();
     std::unique_ptr<ExprAST> ParseForExpr();
     std::unique_ptr<PrototypeAST> ParsePrototype();
-    std::unique_ptr<FunctionAST> ParseDefinition();
+    std::unique_ptr<FunctionAST> ParseFunction();
     std::unique_ptr<BlockExprAST> ParseBlock();
     std::unique_ptr<ClassAST> ParseClass();
 

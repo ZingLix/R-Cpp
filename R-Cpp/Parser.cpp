@@ -192,17 +192,26 @@ std::unique_ptr<ExprAST> Parser::ParseExpression() {
                 }else
                 {
                     auto rh = dynamic_cast<VariableExprAST*>(r.get());
-                    if (rh == nullptr) {
+                    auto rfunc = dynamic_cast<CallExprAST*>(r.get());
+                    if (rh != nullptr) {
+                        auto rettype = symbol_->getClassMemberType(l->getType(), rh->getName());
+                        if (rettype == "") {
+                            error("No such member in " + l->getType() + ".");
+                            return nullptr;
+                        }
+                        expr.push(std::make_unique<MemberAccessAST>(std::move(l), std::move(r), o, rettype));
+
+                    }
+                    else 
+                    if(rfunc!=nullptr)
+                    {
+                        auto rettype = rfunc->getType();
+                        expr.push(std::make_unique<MemberAccessAST>(std::move(l), std::move(r), o, rettype));
+                    }else
+                    {
                         error("Right hand of . should be member variable.");
                         return nullptr;
                     }
-
-                    auto rettype = symbol_->getClassMemberType(l->getType(), rh->getName());
-                    if (rettype == "") {
-                        error("No such member in " + l->getType() + ".");
-                        return nullptr;
-                    }
-                    expr.push(std::make_unique<MemberAccessAST>(std::move(l), std::move(r), o, rettype));
                 }
             }
         }
@@ -230,18 +239,23 @@ std::unique_ptr<ExprAST> Parser::ParseExpression() {
                 std::move(r), r->getType()));
         } else {
             auto rh = dynamic_cast<VariableExprAST*>(r.get());
-            if (rh == nullptr) {
-                error("Right hand of . should be member variable.");
-                return nullptr;
-            }
-            
-            auto rettype = symbol_->getClassMemberType(l->getType(), rh->getName());
-            if(rettype=="")
-            {
-                error("No such member in " + l->getType()+".");
-                return nullptr;
-            }
-            expr.push(std::make_unique<MemberAccessAST>(std::move(l), std::move(r), o,rettype));
+            auto rfunc = dynamic_cast<CallExprAST*>(r.get());
+            if (rh != nullptr) {
+                auto rettype = symbol_->getClassMemberType(l->getType(), rh->getName());
+                if (rettype == "") {
+                    error("No such member in " + l->getType() + ".");
+                    return nullptr;
+                }
+                expr.push(std::make_unique<MemberAccessAST>(std::move(l), std::move(r), o, rettype));
+
+            } else
+                if (rfunc != nullptr) {
+                    auto rettype = rfunc->getType();
+                    expr.push(std::make_unique<MemberAccessAST>(std::move(l), std::move(r), o, rettype));
+                } else {
+                    error("Right hand of . should be member variable.");
+                    return nullptr;
+                }
         }
     }
     return std::move(expr.top());
@@ -469,7 +483,7 @@ std::unique_ptr<BlockExprAST> Parser::ParseBlock() {
     return std::make_unique<BlockExprAST>(std::move(body));
 }
 
-std::unique_ptr<FunctionAST> Parser::ParseDefinition() {
+std::unique_ptr<FunctionAST> Parser::ParseFunction() {
     ScopeGuard sg(*symbol_);
     getNextToken(); // eat fn.
     auto Proto = ParsePrototype();
@@ -490,7 +504,7 @@ std::unique_ptr<FunctionAST> Parser::ParseDefinition() {
 }
 
 void Parser::HandleDefinition() {
-    auto func = ParseDefinition();
+    auto func = ParseFunction();
     if (func != nullptr) {
         fprintf(stderr, "Parsed a function definition.\n");
         expr_.emplace_back(std::move(func));
@@ -531,6 +545,12 @@ std::unique_ptr<ClassAST> Parser::ParseClass()
                 return nullptr;
             }
             c.memberVariables.emplace_back(var->getVarName(), var->getVarType());
+        }else if(cur_token_.type==TokenType::Function)
+        {
+            auto fn = ParseFunction();
+            c.memberFunctions.emplace_back(fn->getName(), fn->Arg());
+            fn->setClassName(c.name);
+            expr_.push_back(std::move(fn));
         }
         if (cur_token_.type == TokenType::Semicolon) getNextToken();
     }

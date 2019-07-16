@@ -159,17 +159,19 @@ class CallExprAST:public ExprAST
 public:
     CallExprAST(const std::string& callee, std::vector<std::unique_ptr<ExprAST>> args, const std::string& t);
     llvm::Value* generateCode(CodeGenerator& cg) override; 
-
+    void setThis(llvm::Value* This);
+    const std::string& getName() { return Callee; }
 private:
     std::string Callee;
     std::vector<std::unique_ptr<ExprAST>> Args;
+    llvm::Value* thisPtr;
 };
 
 class PrototypeAST
 {
     std::string Name;
     std::vector<Variable> Args;
-
+    std::string ClassName;
 public:
     PrototypeAST(const std::string& name, std::vector<Variable> Args)
         : Name(name), Args(std::move(Args)) {
@@ -181,6 +183,8 @@ public:
         return Args;
     }
     llvm::Function* generateCode(CodeGenerator& cg);
+    void setClassName(const std::string& className) { this->ClassName = className; }
+    std::string getClassName() { return ClassName; }
 };
 
 class FunctionAST
@@ -196,12 +200,22 @@ public:
     }
     ~FunctionAST() {}
     llvm::Function* generateCode(CodeGenerator& cg);
+    std::string getName() { return Proto->getName(); }
+    void setClassName(const std::string& className) { Proto->setClassName(className); }
+    std::string getClassName() { return Proto->getClassName();}
+    std::vector<Variable>& Arg() {
+        return Proto->Arg();
+    }
+    auto& insturctions()
+    {
+        return Body->instructions();
+    }
 };
 
 class ClassAST
 {
     Class c;
-    // std::vector<std::unique_ptr<ExprAST>> Body;
+    //std::vector<std::unique_ptr<FunctionAST>> Body;
 
 public:
     ClassAST(const Class& clas)
