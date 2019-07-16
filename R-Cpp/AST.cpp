@@ -25,7 +25,9 @@ AllocaInst* CreateEntryBlockAlloca(llvm::Function* TheFunction, Type* Type,
 
 AllocaInst* CreateEntryBlockAlloca(llvm::Function* TheFunction,const std::string& TypeName,
     const std::string& VarName,CodeGenerator& cg) {
-    return CreateEntryBlockAlloca(TheFunction, get_builtin_type(TypeName,cg), VarName, cg);
+    auto type = cg.symbol().getType(TypeName);
+    if (!type) type = get_builtin_type(TypeName, cg);
+    return CreateEntryBlockAlloca(TheFunction, type, VarName, cg);
 }
 
 IntegerExprAST::IntegerExprAST(std::int64_t v):ExprAST("i32"), val(v) {
@@ -52,6 +54,7 @@ llvm::Value* VariableExprAST::generateCode(CodeGenerator& cg) {
         std::cout << "Unknown variable name: "<<name<<"." << std::endl;
         return nullptr;
     }
+    alloca_ = v.alloc;
     return cg.builder().CreateLoad(v.alloc);
 
 }
@@ -69,18 +72,16 @@ VariableDefAST::VariableDefAST(const std::string& type_name, const std::string& 
 
 llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
     auto F = cg.builder().GetInsertBlock()->getParent();
-    Value* InitVal;
-    if(!init_value_) {
-        InitVal = get_builtin_type_default_value(typename_, cg);
-    }else {
-        InitVal = init_value_->generateCode(cg);
+    auto alloc = CreateEntryBlockAlloca(F, typename_, varname_, cg);
+    if (init_value_) {
+        auto InitVal = init_value_->generateCode(cg);
         if (!InitVal) return nullptr;
+        cg.builder().CreateStore(InitVal, alloc);
     }
-    auto alloca = CreateEntryBlockAlloca(F, typename_, varname_, cg);
-    cg.builder().CreateStore(InitVal, alloca);
+    cg.symbol().setValue(varname_, Variable(varname_, typename_, alloc));
 
-    cg.symbol().setValue(varname_, Variable(varname_,typename_,alloca));
 
+    return Constant::getNullValue(Type::getDoubleTy(cg.context()));
 }
 
 BinaryExprAST::BinaryExprAST(OperatorType op,
@@ -96,23 +97,23 @@ llvm::Value* BinaryExprAST::generateCode(CodeGenerator& cg) {
     if (!L || !R) return nullptr;
     Value* res=nullptr;
     if (isCompoundAssignOperator(Op)) {
-        VariableExprAST* LHSE = dynamic_cast<VariableExprAST*>(LHS.get());
+        auto LHSE = dynamic_cast<AllocAST*>(LHS.get());
         if (!LHSE)
-            return LogError("destination of '=' must be a variable");
+           return LogError("destination of '=' must be a variable");
         auto op = compoundAssignToOperator(Op);
         res = builtinTypeOperate(L, LType, R, RType, op, cg);
-        auto var = cg.symbol().getValue(LHSE->getName());
-        if (!var.alloc) return LogError("Unknown variable name.");
-        return cg.builder().CreateStore(res, var.alloc);;
+        //auto var = cg.symbol().getValue(LHSE->getName());
+        //if (!var.alloc) return LogError("Unknown variable name.");
+        return cg.builder().CreateStore(res, LHSE->getAlloc());;
 
     } else if(Op==OperatorType::Assignment)
     {
-        VariableExprAST* LHSE = dynamic_cast<VariableExprAST*>(LHS.get());
+        auto LHSE = dynamic_cast<AllocAST*>(LHS.get());
         if (!LHSE)
             return LogError("destination of '=' must be a variable");
-        auto var = cg.symbol().getValue(LHSE->getName());
-        if (!var.alloc) return LogError("Unknown variable name.");
-        return cg.builder().CreateStore(R, var.alloc);;
+        //auto var = cg.symbol().getValue();
+        //if (!var.alloc) return LogError("Unknown variable name.");
+        return cg.builder().CreateStore(R, LHSE->getAlloc());;
     }
     else{
         res = builtinTypeOperate(L, LType, R, RType, Op,cg);
@@ -312,4 +313,26 @@ llvm::StructType* ClassAST::generateCode(CodeGenerator& cg)
     type->setBody(members);
     cg.symbol().setType(c.name,type);
     return type;
+}
+
+MemberAccessAST::MemberAccessAST(std::unique_ptr<ExprAST> Var, std::unique_ptr<ExprAST> Member, OperatorType Op,
+                                 const std::string& retType): ExprAST(retType), var(std::move(Var)),
+                                                              member(std::move(Member)), op(Op)
+{
+}
+
+llvm::Value* MemberAccessAST::generateCode(CodeGenerator& cg)
+{
+    auto mem = dynamic_cast<VariableExprAST*>(member.get());
+    if (!mem) return nullptr;
+    Value* index = ConstantInt::get(cg.context(),
+        APInt(32, cg.symbol().getClassMemberIndex(var->getType(), mem->getName())));
+    Value* data = var->generateCode(cg);
+    std::vector<llvm::Value*> indices(2);
+    indices[0] = llvm::ConstantInt::get(cg.context(), llvm::APInt(32, 0, true));
+    indices[1] = index;
+    alloca_ = cg.symbol().getValue(dynamic_cast<VariableExprAST*>(var.get())->getName()).alloc;
+    Value* ptr = cg.builder().CreateGEP(alloca_, indices, "memberptr");
+    alloca_ = static_cast<AllocaInst*>(ptr);
+    return cg.builder().CreateLoad(ptr);
 }

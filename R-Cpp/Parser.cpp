@@ -67,11 +67,11 @@ std::unique_ptr<ExprAST> Parser::ParseIdentifierExpr() {
     // is only a identifier
     if (cur_token_.type != TokenType::lParenthesis) {
         auto var = symbol_->getValue(idname);
-        if(var.name=="")
-        {
-            error("Unknown identifier.");
-            return nullptr;
-        }
+        //if(var.name=="")
+        //{
+        //    error("Unknown identifier.");
+        //    return nullptr;
+        //}
         return std::make_unique<VariableExprAST>(idname,var.type);;
     }
     // is calling a function
@@ -180,12 +180,30 @@ std::unique_ptr<ExprAST> Parser::ParseExpression() {
                 if (expr.empty()) {
                     error("Incomplete expression.");
                     return nullptr;
-                }                auto l = std::move(expr.top());
+                } 
+                auto l = std::move(expr.top());
                 expr.pop();
                 auto o = ops.top();
                 ops.pop();
-                auto e = std::make_unique<BinaryExprAST>(o, std::move(l),l->getType(), std::move(r),r->getType());
-                expr.push(std::move(e));
+                if(o!=OperatorType::MemberAccessP)
+                {
+                    expr.push(std::make_unique<BinaryExprAST>(o, std::move(l), l->getType(),
+                        std::move(r), r->getType()));
+                }else
+                {
+                    auto rh = dynamic_cast<VariableExprAST*>(r.get());
+                    if (rh == nullptr) {
+                        error("Right hand of . should be member variable.");
+                        return nullptr;
+                    }
+
+                    auto rettype = symbol_->getClassMemberType(l->getType(), rh->getName());
+                    if (rettype == "") {
+                        error("No such member in " + l->getType() + ".");
+                        return nullptr;
+                    }
+                    expr.push(std::make_unique<MemberAccessAST>(std::move(l), std::move(r), o, rettype));
+                }
             }
         }
         ops.push(op);
@@ -207,8 +225,24 @@ std::unique_ptr<ExprAST> Parser::ParseExpression() {
         expr.pop();
         auto o = ops.top();
         ops.pop();
-        auto e = std::make_unique<BinaryExprAST>(o, std::move(l),l->getType(), std::move(r),r->getType());
-        expr.push(std::move(e));
+        if (o != OperatorType::MemberAccessP) {
+            expr.push(std::make_unique<BinaryExprAST>(o, std::move(l), l->getType(),
+                std::move(r), r->getType()));
+        } else {
+            auto rh = dynamic_cast<VariableExprAST*>(r.get());
+            if (rh == nullptr) {
+                error("Right hand of . should be member variable.");
+                return nullptr;
+            }
+            
+            auto rettype = symbol_->getClassMemberType(l->getType(), rh->getName());
+            if(rettype=="")
+            {
+                error("No such member in " + l->getType()+".");
+                return nullptr;
+            }
+            expr.push(std::make_unique<MemberAccessAST>(std::move(l), std::move(r), o,rettype));
+        }
     }
     return std::move(expr.top());
 }

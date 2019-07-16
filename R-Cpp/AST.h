@@ -21,6 +21,15 @@ protected:
     std::string type;
 };
 
+class AllocAST
+{
+public:
+    AllocAST():alloca_(nullptr){}
+    llvm::AllocaInst* getAlloc() { return alloca_; }
+protected:
+    llvm::AllocaInst* alloca_;
+};
+
 class IntegerExprAST:public ExprAST
 {
 public:
@@ -41,12 +50,13 @@ private:
     double val;
 };
 
-class VariableExprAST:public ExprAST
+class VariableExprAST:public ExprAST,public AllocAST
 {
 public:
     VariableExprAST(const std::string& n, const std::string& t);
     llvm::Value* generateCode(CodeGenerator& cg) override;
     std::string getName() { return name; }
+
 private:
     std::string name;
 };
@@ -200,4 +210,16 @@ public:
     }
 
     llvm::StructType* generateCode(CodeGenerator& cg);
+};
+
+class MemberAccessAST:public ExprAST,public AllocAST
+{
+    std::unique_ptr<ExprAST> var;
+    std::unique_ptr<ExprAST> member;
+    OperatorType op;
+
+public:
+    MemberAccessAST(std::unique_ptr<ExprAST> Var, std::unique_ptr<ExprAST> Member,
+                    OperatorType Op, const std::string& retType);
+    llvm::Value* generateCode(CodeGenerator& cg) override;
 };

@@ -2,8 +2,6 @@
 #include "AST.h"
 #include "Lexer.h"
 #include <memory>
-#include <unordered_map>
-#include <map>
 
 class Parser
 {

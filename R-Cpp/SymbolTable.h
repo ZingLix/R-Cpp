@@ -24,9 +24,10 @@ public:
     Class getClass(const std::string& name);
     llvm::Type* getType(const std::string& name);
     void setType(const std::string& name, llvm::Type* t);
+    std::string getClassMemberType(const std::string& className, const std::string& memberName);
+    int getClassMemberIndex(const std::string& className, const std::string& memberName);
 
 private:
-
     std::vector<std::map<std::string, Variable>> NamedValues;
     std::vector<std::map<std::string, ::Function>> NamedFunctions;
     std::vector<std::map<std::string, Class>> NamedClass;

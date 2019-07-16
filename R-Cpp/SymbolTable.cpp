@@ -72,6 +72,7 @@ Class SymbolTable::getClass(const std::string& name)
 
 llvm::Type* SymbolTable::getType(const std::string& name)
 {
+    if (is_builtin_type(name)) return nullptr;
     return getClass(name).type;
 }
 
@@ -82,3 +83,24 @@ void SymbolTable::setType(const std::string& name, llvm::Type* type)
         if (t != it->end()) (t->second).type=type;
     }
 }
+
+std::string SymbolTable::getClassMemberType(const std::string& className, const std::string& memberName)
+{
+    auto c = getClass(className);
+    for(auto& v:c.memberVariables)
+    {
+        if (v.name == memberName) return v.type;
+    }
+    return "";
+}
+
+int SymbolTable::getClassMemberIndex(const std::string& className, const std::string& memberName)
+{
+    auto c = getClass(className);
+    for(auto it=c.memberVariables.begin();it!=c.memberVariables.end();++it)
+    {
+        if (it->name == memberName) return it - c.memberVariables.begin();
+    }
+    return -1;
+}
+
