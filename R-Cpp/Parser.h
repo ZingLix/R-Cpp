@@ -35,6 +35,7 @@ private:
     Token& getNextToken();
     OperatorType getNextBinOperator();
     void error(const std::string& errmsg);
+    std::unique_ptr<ExprAST> MergeExpr(std::unique_ptr<ExprAST>, std::unique_ptr<ExprAST>, OperatorType);
 
     Lexer lexer_;
     Token cur_token_;

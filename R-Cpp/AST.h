@@ -130,7 +130,7 @@ private:
 class BinaryExprAST:public ExprAST
 {
 public:
-    BinaryExprAST(OperatorType op, std::unique_ptr<ExprAST> lhs,const std::string& ltype, std::unique_ptr<ExprAST> rhs,const std::string& rtype);
+    BinaryExprAST(OperatorType op, std::unique_ptr<ExprAST> lhs, std::unique_ptr<ExprAST> rhs,const std::string& retType);
     llvm::Value* generateCode(CodeGenerator& cg) override;
 
 private:
@@ -175,6 +175,7 @@ class PrototypeAST
 public:
     PrototypeAST(const std::string& name, std::vector<Variable> Args)
         : Name(name), Args(std::move(Args)) {
+
     }
     ~PrototypeAST() {}
     const std::string& getName() const { return Name; }

@@ -154,111 +154,83 @@ std::unique_ptr<ExprAST> Parser::ParseReturnExpr() {
     return nullptr;
 }
 
+std::unique_ptr<ExprAST> Parser::MergeExpr(std::unique_ptr<ExprAST> LHS, std::unique_ptr<ExprAST> RHS, OperatorType Op)
+{
+    if (Op != OperatorType::MemberAccessP) {
+        return std::make_unique<BinaryExprAST>(Op, std::move(LHS),
+            std::move(RHS), builtinOperatorReturnType(LHS->getType(), RHS->getType(), Op));
+    }
+    std::string retType;
+    auto rh = dynamic_cast<VariableExprAST*>(RHS.get());
+    auto rfunc = dynamic_cast<CallExprAST*>(RHS.get());
+    if (rh != nullptr) {
+        retType = symbol_->getClassMemberType(LHS->getType(), rh->getName());
+        if (retType == "") {
+            error("No such member in " + LHS->getType() + ".");
+            return nullptr;
+        }
+    } else if (rfunc != nullptr) {
+        retType = rfunc->getType();
+    } else {
+        error("Right hand of . should be member variable.");
+        return nullptr;
+    }
+    return (std::make_unique<MemberAccessAST>(std::move(LHS), std::move(RHS), Op, retType));
+}
+
+
 std::unique_ptr<ExprAST> Parser::ParseExpression() {
     auto LHS = ParsePrimary();
     if (!LHS)
         return nullptr;
     std::stack<OperatorType> ops;
-    std::stack<std::unique_ptr<ExprAST>> expr;
     ops.push(OperatorType::None);
+    std::stack<std::unique_ptr<ExprAST>> expr;
     expr.push(std::move(LHS));
     while (true)
     {
-        if (cur_token_.type == TokenType::Semicolon||cur_token_.type==TokenType::rParenthesis) 
-            break;
-        auto op = getNextBinOperator();
-        if(getBinOperatorPrecedence(op)<getBinOperatorPrecedence(ops.top()))
+        OperatorType op;
+        if (cur_token_.type == TokenType::Semicolon||cur_token_.type==TokenType::rParenthesis)
         {
-            while (getBinOperatorPrecedence(op) < getBinOperatorPrecedence(ops.top()))
+            if (ops.top() == OperatorType::None) break;
+            op = OperatorType::None;
+        }else
+            op = getNextBinOperator();
+        while(getBinOperatorPrecedence(op)<getBinOperatorPrecedence(ops.top()))
+        {
+            std::stack<OperatorType> curLevelOps;
+            std::stack<std::unique_ptr<ExprAST>> curLevelExprs;
+            curLevelExprs.push(std::move(expr.top()));
+            expr.pop();
+            auto curPrecedence = getBinOperatorPrecedence(ops.top());
+            while (curPrecedence== getBinOperatorPrecedence(ops.top()))
             {
-                if (expr.empty()) {
-                    error("Incomplete expression.");
-                    return nullptr;
-                }
-                auto r = std::move(expr.top());
-                expr.pop();
-                if (expr.empty()) {
-                    error("Incomplete expression.");
-                    return nullptr;
-                } 
-                auto l = std::move(expr.top());
-                expr.pop();
-                auto o = ops.top();
+                curLevelOps.push(ops.top());
                 ops.pop();
-                if(o!=OperatorType::MemberAccessP)
-                {
-                    expr.push(std::make_unique<BinaryExprAST>(o, std::move(l), l->getType(),
-                        std::move(r), r->getType()));
-                }else
-                {
-                    auto rh = dynamic_cast<VariableExprAST*>(r.get());
-                    auto rfunc = dynamic_cast<CallExprAST*>(r.get());
-                    if (rh != nullptr) {
-                        auto rettype = symbol_->getClassMemberType(l->getType(), rh->getName());
-                        if (rettype == "") {
-                            error("No such member in " + l->getType() + ".");
-                            return nullptr;
-                        }
-                        expr.push(std::make_unique<MemberAccessAST>(std::move(l), std::move(r), o, rettype));
-
-                    }
-                    else 
-                    if(rfunc!=nullptr)
-                    {
-                        auto rettype = rfunc->getType();
-                        expr.push(std::make_unique<MemberAccessAST>(std::move(l), std::move(r), o, rettype));
-                    }else
-                    {
-                        error("Right hand of . should be member variable.");
-                        return nullptr;
-                    }
-                }
+                curLevelExprs.push(std::move(expr.top()));
+                expr.pop();
             }
+            while (!curLevelOps.empty())
+            {
+                auto o = curLevelOps.top();
+                curLevelOps.pop();
+                auto l = std::move(curLevelExprs.top());
+                curLevelExprs.pop();
+                auto r = std::move(curLevelExprs.top());
+                curLevelExprs.pop();
+                curLevelExprs.push(MergeExpr(std::move(l), std::move(r), o));
+            }
+            expr.push(std::move(curLevelExprs.top()));
+            curLevelExprs.pop();
+            assert(curLevelExprs.empty()==true);
         }
-        ops.push(op);
-        expr.push(ParsePrimary());
-    }
-    while (ops.top()!=OperatorType::None)
-    {
-        if (expr.empty()) {
-            error("Incomplete expression.");
-            return nullptr;
-        }
-        auto r = std::move(expr.top());
-        expr.pop();
-        if (expr.empty()) {
-            error("Incomplete expression.");
-            return nullptr;
-        }
-        auto l = std::move(expr.top());
-        expr.pop();
-        auto o = ops.top();
-        ops.pop();
-        if (o != OperatorType::MemberAccessP) {
-            expr.push(std::make_unique<BinaryExprAST>(o, std::move(l), l->getType(),
-                std::move(r), r->getType()));
-        } else {
-            auto rh = dynamic_cast<VariableExprAST*>(r.get());
-            auto rfunc = dynamic_cast<CallExprAST*>(r.get());
-            if (rh != nullptr) {
-                auto rettype = symbol_->getClassMemberType(l->getType(), rh->getName());
-                if (rettype == "") {
-                    error("No such member in " + l->getType() + ".");
-                    return nullptr;
-                }
-                expr.push(std::make_unique<MemberAccessAST>(std::move(l), std::move(r), o, rettype));
-
-            } else
-                if (rfunc != nullptr) {
-                    auto rettype = rfunc->getType();
-                    expr.push(std::make_unique<MemberAccessAST>(std::move(l), std::move(r), o, rettype));
-                } else {
-                    error("Right hand of . should be member variable.");
-                    return nullptr;
-                }
+        if(op!=OperatorType::None)
+        {
+            ops.push(op);
+            expr.push(ParsePrimary());
         }
     }
-    return std::move(expr.top());
+   return std::move(expr.top());
 }
 
 OperatorType Parser::getNextBinOperator()
@@ -548,9 +520,11 @@ std::unique_ptr<ClassAST> Parser::ParseClass()
         }else if(cur_token_.type==TokenType::Function)
         {
             auto fn = ParseFunction();
-            c.memberFunctions.emplace_back(fn->getName(), fn->Arg());
+            Function f(fn->getName(), fn->Arg());
+            c.memberFunctions.push_back(f);
             fn->setClassName(c.name);
             expr_.push_back(std::move(fn));
+            symbol_->addFunction(f.name, f);
         }
         if (cur_token_.type == TokenType::Semicolon) getNextToken();
     }

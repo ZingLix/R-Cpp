@@ -85,9 +85,9 @@ llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
 }
 
 BinaryExprAST::BinaryExprAST(OperatorType op,
-    std::unique_ptr<ExprAST> lhs, const std::string& ltype,
-    std::unique_ptr<ExprAST> rhs, const std::string& rtype)
-    :ExprAST(builtinOperatorReturnType(ltype,rtype,op)), Op(op), LHS(std::move(lhs)),RHS(std::move(rhs)),LType(LHS->getType()),RType(RHS->getType()) 
+    std::unique_ptr<ExprAST> lhs,
+    std::unique_ptr<ExprAST> rhs, const std::string& retType)
+    :ExprAST(retType), Op(op), LHS(std::move(lhs)),RHS(std::move(rhs)),LType(LHS->getType()),RType(RHS->getType()) 
 {
 }
 
@@ -268,17 +268,17 @@ llvm::Function* PrototypeAST::generateCode(CodeGenerator& cg) {
         else    arg.setName(Args[i++].name);*/
         arg.setName(Args[i++].name);
     }
-        
+    cg.symbol().addFunction(Name, ::Function(Name, Args));
     return F;
 }
 
 llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
-    ScopeGuard sg(cg.symbol());
     auto F = cg.getFunction(Proto->getName());
     if (!F) F = Proto->generateCode(cg);
     if (!F) return nullptr;
     if (!F->empty()) return LogErrorF("Cannot redefine function.");
     BasicBlock* BB = BasicBlock::Create(cg.context(), "entry", F);
+    ScopeGuard sg(cg.symbol());
     cg.builder().SetInsertPoint(BB);
     int i = 0;
     for(auto& Arg:F->args()) {
@@ -360,7 +360,13 @@ MemberAccessAST::MemberAccessAST(std::unique_ptr<ExprAST> Var, std::unique_ptr<E
 
 llvm::Value* MemberAccessAST::generateCode(CodeGenerator& cg)
 {
+    var->generateCode(cg);
     auto mem = dynamic_cast<VariableExprAST*>(member.get());
+    auto tmp = dynamic_cast<VariableExprAST*>(var.get());
+    if (tmp != nullptr)
+        alloca_ = cg.symbol().getValue(tmp->getName()).alloc;
+    else
+        alloca_ = dynamic_cast<AllocAST*>(var.get())->getAlloc();
     if (mem) {
         Value* index = ConstantInt::get(cg.context(),
             APInt(32, cg.symbol().getClassMemberIndex(var->getType(), mem->getName())));
@@ -368,19 +374,22 @@ llvm::Value* MemberAccessAST::generateCode(CodeGenerator& cg)
         std::vector<llvm::Value*> indices(2);
         indices[0] = llvm::ConstantInt::get(cg.context(), llvm::APInt(32, 0, true));
         indices[1] = index;
-        alloca_ = cg.symbol().getValue(dynamic_cast<VariableExprAST*>(var.get())->getName()).alloc;
         Value* ptr = cg.builder().CreateGEP(alloca_, indices, "memberptr");
         alloca_ = static_cast<AllocaInst*>(ptr);
-        type = cg.symbol().getValue(mem->getName()).type;
+        type = cg.symbol().getClassMemberType(var->getType(),mem->getName());
         return cg.builder().CreateLoad(ptr);
     }
     auto func = dynamic_cast<CallExprAST*>(member.get());
     if(func)
     {
-        alloca_ = cg.symbol().getValue(dynamic_cast<VariableExprAST*>(var.get())->getName()).alloc;
-
+        //alloca_ = cg.symbol().getValue(dynamic_cast<VariableExprAST*>(var.get())->getName()).alloc;
+        
         func->setThis(alloca_);
-        type = func->getType();
+        type = cg.symbol().getFunction(func->getName()).returnType;
+        if(type=="")
+        {
+            std::cout << "as";
+        }
         return member->generateCode(cg);
     }
     return nullptr;

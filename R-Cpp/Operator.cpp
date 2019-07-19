@@ -38,6 +38,7 @@ OperatorType TokenToBinOperator(TokenType t) {
 int getBinOperatorPrecedence(OperatorType t) {
     static const std::map<OperatorType, int> BinopPrecedence
     {
+        {OperatorType::None, 0},
         {OperatorType::Assignment, 2},
         {OperatorType::SumComAssign, 2},
         {OperatorType::MinComAssign, 2},
