@@ -5,6 +5,7 @@ extern "C"{
     int sum(int);
     int precedence();
     int classMemberFunction(int);
+    int array(int);
 }
 
 int Fibonacci(int i){
@@ -18,6 +19,18 @@ int Sum(int a){
     for(int i=0;i<a;i=i+1)
         count=count+i;
     return count;
+}
+
+int Array(int a){
+    int arr[10];
+    for(int i=1;i<11;i=i+1){
+        arr[i-1]=a*i;
+    }
+    int sum_=0;
+    for(int j=0;j<10;j=j+1){
+        sum_ += arr[j];
+    }
+    return sum_;
 }
 
 TEST(Function, recursive){
@@ -39,6 +52,12 @@ TEST(BASIC, precedence){
 TEST(CLASS, memberFunction){
     for(int i=2;i<10;++i){
         EXPECT_EQ(classMemberFunction(i),2*(10+i)*(10+i));
+    }
+}
+
+TEST(ARRAY, basic){
+    for(int i=2;i<10;++i){
+        EXPECT_EQ(array(i),Array(i));
     }
 }
 

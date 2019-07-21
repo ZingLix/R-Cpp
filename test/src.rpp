@@ -18,31 +18,49 @@ fn sum(i32 a) -> i32
 
 // Basic.precedence
 fn precedence()->i32{
- return 3*4+8*5+10;
+    return 3*4+8*5+10;
 }
 
 // Class.memberFunction
-class c{
+class c
+{
     i32 a;
     i32 b;
-    fn add()->i32{
+    fn add() -> i32
+    {
         return a+b;
     }
 }
 
-class d{
+class d
+{
     c x;
     i32 y;
-    fn func()->i32{
+    fn func() -> i32
+    {
         i32 tmp =x.add();
         return tmp*y;
     }
 }
 
-fn classMemberFunction(i32 a)->i32{
+fn classMemberFunction(i32 a)->i32
+{
     d v;
     v.x.a=a;
     v.x.b=10;
     v.y=2*v.x.add();
     return v.func();
+}
+
+fn array(i32 a)->i32
+{
+    Arr<i32,10> array;
+    for(i32 i=1;i<11;i=i+1){
+        array[i-1]=a*i;
+    }
+    i32 sum=0;
+    for(i32 j=0;j<10;j=j+1){
+        sum += array[j];
+    }
+    return sum;
 }

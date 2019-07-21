@@ -35,9 +35,7 @@ bool is_builtin_type(llvm::Type::TypeID type) {
 }
 
 bool is_builtin_type(const std::string& s) {
-    if (s == "i32"||s == "i64" || s == "u32" || 
+    return (s == "i32" || s == "i64" || s == "u32" ||
         s == "u64" || s == "bool" || s == "float" ||
-        s == "double") 
-        return true;
-        return false;
+        s == "double" || s == "Arr");
 }

@@ -51,7 +51,11 @@ void SymbolTable::addFunction(const std::string& name, ::Function func)
 }
 
 bool SymbolTable::hasType(const std::string& name) {
-    return is_builtin_type(name);
+    if(!is_builtin_type(name))
+    {
+        return getClass(name).name!="";
+    }
+    return true;
 }
 
 void SymbolTable::addClass(const std::string& name, Class c)

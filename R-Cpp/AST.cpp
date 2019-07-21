@@ -71,15 +71,29 @@ VariableDefAST::VariableDefAST(const std::string& type_name, const std::string& 
 }
 
 llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
-    auto F = cg.builder().GetInsertBlock()->getParent();
-    auto alloc = CreateEntryBlockAlloca(F, typename_, varname_, cg);
-    if (init_value_) {
-        auto InitVal = init_value_->generateCode(cg);
-        if (!InitVal) return nullptr;
-        cg.builder().CreateStore(InitVal, alloc);
-    }
-    cg.symbol().setValue(varname_, Variable(varname_, typename_, alloc));
+    if(typename_=="Arr")
+    {
+        auto elementTypename = dynamic_cast<VariableExprAST*>(template_args_[0].get())->getName();
+        auto elementType = cg.symbol().getType(elementTypename);
+        if (!elementType) elementType = get_builtin_type(elementTypename, cg);
+        auto size = dynamic_cast<IntegerExprAST*>(template_args_[1].get())->value();
+        //auto size = template_args_[1]->generateCode(cg);
+        auto type = ArrayType::get(elementType, size);
+        auto alloc = cg.builder().CreateAlloca(type);
+        cg.symbol().setValue(varname_, Variable(varname_, elementTypename, alloc));
+        this->type = elementTypename;
+    }else
+    {
+        auto F = cg.builder().GetInsertBlock()->getParent();
+        auto alloc = CreateEntryBlockAlloca(F, typename_, varname_, cg);
+        if (init_value_) {
+            auto InitVal = init_value_->generateCode(cg);
+            if (!InitVal) return nullptr;
+            cg.builder().CreateStore(InitVal, alloc);
+        }
+        cg.symbol().setValue(varname_, Variable(varname_, typename_, alloc));
 
+    }
 
     return Constant::getNullValue(Type::getDoubleTy(cg.context()));
 }
@@ -101,7 +115,7 @@ llvm::Value* BinaryExprAST::generateCode(CodeGenerator& cg) {
         if (!LHSE)
            return LogError("destination of '=' must be a variable");
         auto op = compoundAssignToOperator(Op);
-        res = builtinTypeOperate(L, LType, R, RType, op, cg);
+        res = builtinTypeOperate(L, LHS->getType(), R, RHS->getType(), op, cg);
         //auto var = cg.symbol().getValue(LHSE->getName());
         //if (!var.alloc) return LogError("Unknown variable name.");
         return cg.builder().CreateStore(res, LHSE->getAlloc());;
@@ -287,6 +301,7 @@ llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
         cg.builder().CreateStore(&Arg, alloca);
         cg.symbol().setValue(Proto->Arg()[i].name, 
             Variable(Proto->Arg()[i].name, Proto->Arg()[i].type,alloca));
+        i++;
     }
     bool hasReturn = false;
     if(getClassName()!="")
@@ -326,7 +341,7 @@ llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
     //
     if (!hasReturn) cg.builder().CreateRet(nullptr);
     if(verifyFunction(*F,&errs())) {
-        std::cout << "something bad...\n";
+        std::cout<<std::endl << "something bad happened ...\n";
     }
     //cg.FPM()->run(*F);
     return F;
@@ -390,4 +405,24 @@ llvm::Value* MemberAccessAST::generateCode(CodeGenerator& cg)
         return member->generateCode(cg);
     }
     return nullptr;
+}
+
+llvm::Value* UnaryExprAST::generateCode(CodeGenerator& cg)
+{
+    auto var = expr->generateCode(cg);
+    std::vector<Value*> values;
+    values.push_back(ConstantInt::get(cg.context(), llvm::APInt(32, 0, true)));
+    for(auto& a:args)
+    {
+        values.push_back(a->generateCode(cg));
+    }
+    //std::vector<llvm::Value*> indices(2);
+    //indices[0] = llvm::ConstantInt::get(cg.context(), llvm::APInt(32, 0, true));
+    //indices[1] = llvm::ConstantInt::get(cg.context(), llvm::APInt(32, 0, true));
+    Value* ptr = cg.builder().CreateGEP(dynamic_cast<VariableExprAST*>(expr.get())->getAlloc() , values);
+    alloca_ = static_cast<AllocaInst*>(ptr);
+    // todo: hack here!!!
+    type = "i32";
+    assert(type != "");
+    return cg.builder().CreateLoad(ptr);
 }

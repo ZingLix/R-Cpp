@@ -29,7 +29,13 @@ std::unique_ptr<ExprAST> Parser::ParseStatement() {
 
 std::unique_ptr<ExprAST> Parser::ParsePrimary() {
     if (cur_token_.type == TokenType::Identifier) {
-        return ParseIdentifierExpr();
+        auto e = ParseIdentifierExpr();
+        if (cur_token_.type == TokenType::lSquare) {
+            e = std::make_unique<UnaryExprAST>(std::move(e), OperatorType::Subscript, ParseSquareExprList());
+        } else if (cur_token_.type == TokenType::lParenthesis) {
+            e = std::make_unique<UnaryExprAST>(std::move(e), OperatorType::FunctionCall, ParseParenExprList());
+        }
+        return e;
     }
     if (cur_token_.type == TokenType::Integer) {
         return ParseIntegerExpr();
@@ -50,7 +56,7 @@ std::unique_ptr<ExprAST> Parser::ParseParenExpr() {
     auto expr = ParseExpression();
     if (!expr) return nullptr;
     if (cur_token_.type != TokenType::rParenthesis) {
-        error("Expected (.");
+        error("Expected ).");
         return nullptr;
     }
     getNextToken(); //eat )
@@ -61,7 +67,8 @@ std::unique_ptr<ExprAST> Parser::ParseIdentifierExpr() {
     auto idname = cur_token_.content;
     getNextToken();
     // is defining a identifier
-    if (cur_token_.type == TokenType::Identifier) {
+ //   if (cur_token_.type == TokenType::Identifier||cur_token_.type==TokenType::lAngle) {
+    if(symbol_->hasType(idname)&&(cur_token_.type == TokenType::Identifier || cur_token_.type == TokenType::lAngle)){
         return ParseVaribleDefinition(idname);
     }
     // is only a identifier
@@ -129,20 +136,27 @@ std::unique_ptr<ExprAST> Parser::ParseForExpr() {
 }
 
 std::unique_ptr<ExprAST> Parser::ParseVaribleDefinition(const std::string& type_name) {
+    std::vector<std::unique_ptr<ExprAST>> template_args;
+    if(cur_token_.type==TokenType::lAngle)
+    {
+        template_args = ParseAngleExprList();
+    }
     auto varname = cur_token_.content;
     symbol_->setValue(varname, Variable(varname, type_name));
     getNextToken();
+    auto expr = std::make_unique<VariableDefAST>(type_name, varname);
+    if (template_args.size() != 0) expr->setTemplateArgs(std::move(template_args));
     if (cur_token_.type == TokenType::Equal) {
         // definition with initiate value
-        getNextToken();
+        getNextToken();   // eat =
         auto E = ParseExpression();
-        return std::make_unique<VariableDefAST>(type_name, varname, std::move(E));
+        expr->setInitValue(std::move(E));
     }
-    if (cur_token_.type == TokenType::Semicolon) {
-        return std::make_unique<VariableDefAST>(type_name, varname);
+    else if (cur_token_.type != TokenType::Semicolon) {
+        error("Expected initiate value or ;.");
+        return nullptr;
     }
-    error("Expected initiate value or ;.");
-    return nullptr;
+    return expr;
 }
 
 std::unique_ptr<ExprAST> Parser::ParseReturnExpr() {
@@ -190,7 +204,8 @@ std::unique_ptr<ExprAST> Parser::ParseExpression() {
     while (true)
     {
         OperatorType op;
-        if (cur_token_.type == TokenType::Semicolon||cur_token_.type==TokenType::rParenthesis)
+        if (cur_token_.type == TokenType::Semicolon||cur_token_.type==TokenType::rParenthesis
+            ||cur_token_.type==TokenType::rSquare)
         {
             if (ops.top() == OperatorType::None) break;
             op = OperatorType::None;
@@ -227,7 +242,9 @@ std::unique_ptr<ExprAST> Parser::ParseExpression() {
         if(op!=OperatorType::None)
         {
             ops.push(op);
-            expr.push(ParsePrimary());
+            auto nextExpr = ParsePrimary();
+
+            expr.push(std::move(nextExpr));
         }
     }
    return std::move(expr.top());
@@ -581,4 +598,55 @@ void Parser::error(const std::string& errmsg)
 std::vector<std::unique_ptr<ClassAST>>& Parser::Classes()
 {
     return class_;
+}
+
+std::vector<std::unique_ptr<ExprAST>> Parser::ParseExprList(TokenType endToken)
+{
+    std::vector<std::unique_ptr<ExprAST>> exprs;
+    while (true)
+    {
+        exprs.push_back(ParseExpression());
+        if (cur_token_.type == endToken) break;
+        if(cur_token_.type!=TokenType::Comma)
+        {
+            error("Expect , to split expressions.");
+            return std::vector<std::unique_ptr<ExprAST>>();
+        }
+        getNextToken();  // eat ,
+    }
+    return exprs;
+}
+
+std::vector<std::unique_ptr<ExprAST>> Parser::ParseParenExprList()
+{
+    getNextToken(); // eat (
+    auto exprs = ParseExprList(TokenType::rParenthesis);
+    getNextToken();  // eat )
+    return exprs;
+}
+
+std::vector<std::unique_ptr<ExprAST>> Parser::ParseSquareExprList()
+{
+    getNextToken(); // eat [
+    auto exprs = ParseExprList(TokenType::rSquare);
+    getNextToken();  // eat ]
+    return exprs;
+}
+
+std::vector<std::unique_ptr<ExprAST>> Parser::ParseAngleExprList()
+{
+    getNextToken(); // eat <
+    //auto exprs = ParseExprList(TokenType::rAngle);
+    std::vector<std::unique_ptr<ExprAST>> exprs;
+    while (true) {
+        exprs.push_back(ParsePrimary());
+        if (cur_token_.type == TokenType::rAngle) break;
+        if (cur_token_.type != TokenType::Comma) {
+            error("Expect , to split expressions.");
+            return std::vector<std::unique_ptr<ExprAST>>();
+        }
+        getNextToken();  // eat ,
+    }
+    getNextToken();  // eat >
+    return exprs;
 }

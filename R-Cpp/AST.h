@@ -35,7 +35,7 @@ class IntegerExprAST:public ExprAST
 public:
     IntegerExprAST(std::int64_t v);
     llvm::Value* generateCode(CodeGenerator& cg) override;
-
+    std::int64_t value() { return val; }
 private:
     std::int64_t val;
 };
@@ -110,10 +110,20 @@ public:
     llvm::Value* generateCode(CodeGenerator& cg) override;
     std::string getVarType() { return typename_; }
     std::string getVarName() { return varname_; }
+    void setTemplateArgs(std::vector<std::unique_ptr<ExprAST>> args)
+    {
+        template_args_ = std::move(args);
+    }
+
+    void setInitValue(std::unique_ptr<ExprAST> initVal)
+    {
+        init_value_ = std::move(initVal);
+    }
 
 private:
     std::string typename_;
     std::string varname_;
+    std::vector<std::unique_ptr<ExprAST>> template_args_;
     std::unique_ptr<ExprAST> init_value_;
 };
 
@@ -237,4 +247,21 @@ public:
     MemberAccessAST(std::unique_ptr<ExprAST> Var, std::unique_ptr<ExprAST> Member,
                     OperatorType Op, const std::string& retType);
     llvm::Value* generateCode(CodeGenerator& cg) override;
+};
+
+class UnaryExprAST:public ExprAST,public AllocAST
+{
+    std::unique_ptr<ExprAST> expr;
+    OperatorType op;
+    std::vector<std::unique_ptr<ExprAST>> args;
+
+public:
+    UnaryExprAST(std::unique_ptr<ExprAST> var,OperatorType Op, std::vector<std::unique_ptr<ExprAST>> Args)
+        :ExprAST(""),expr(std::move(var)),op(Op),args(std::move(Args))
+    { }
+    UnaryExprAST(std::unique_ptr<ExprAST> var, OperatorType Op)
+        :ExprAST(""),expr(std::move(var)), op(Op), args()
+    { }
+    llvm::Value* generateCode(CodeGenerator& cg) override;
+
 };
