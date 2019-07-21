@@ -1,0 +1,48 @@
+// Function.recursive
+fn fibonacci(i32 i) -> i32
+{
+    if(i==1) return 1;
+    else if(i==2) return 1;
+    else return fibonacci(i-1)+fibonacci(i-2);
+}
+
+
+// Basic.for
+fn sum(i32 a) -> i32 
+{
+    i32 count=0;
+    for(i32 i=0;i<a;i=i+1)
+        count=count+i;
+    return count;
+}
+
+// Basic.precedence
+fn precedence()->i32{
+ return 3*4+8*5+10;
+}
+
+// Class.memberFunction
+class c{
+    i32 a;
+    i32 b;
+    fn add()->i32{
+        return a+b;
+    }
+}
+
+class d{
+    c x;
+    i32 y;
+    fn func()->i32{
+        i32 tmp =x.add();
+        return tmp*y;
+    }
+}
+
+fn classMemberFunction(i32 a)->i32{
+    d v;
+    v.x.a=a;
+    v.x.b=10;
+    v.y=2*v.x.add();
+    return v.func();
+}

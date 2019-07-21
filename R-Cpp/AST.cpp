@@ -256,7 +256,8 @@ llvm::Function* PrototypeAST::generateCode(CodeGenerator& cg) {
         auto type = cg.symbol().getType(t.type);
         if (!type) type = get_builtin_type(t.type,cg);
         if(!type) return LogErrorF("Unknown type.");
-        if (t.name == "this") ArgT.push_back(PointerType::get(cg.symbol().getType(ClassName), 32));
+        if (t.name == "this") 
+            ArgT.push_back(PointerType::getUnqual(cg.symbol().getType(ClassName)));
         else ArgT.push_back(type);
     }
     auto FT = FunctionType::get(get_builtin_type("i32",cg), ArgT, false);
@@ -383,13 +384,9 @@ llvm::Value* MemberAccessAST::generateCode(CodeGenerator& cg)
     if(func)
     {
         //alloca_ = cg.symbol().getValue(dynamic_cast<VariableExprAST*>(var.get())->getName()).alloc;
-        
+
         func->setThis(alloca_);
         type = cg.symbol().getFunction(func->getName()).returnType;
-        if(type=="")
-        {
-            std::cout << "as";
-        }
         return member->generateCode(cg);
     }
     return nullptr;

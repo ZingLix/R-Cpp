@@ -368,16 +368,12 @@ std::unique_ptr<PrototypeAST> Parser::ParsePrototype() {
         error("Expected function name in prototype");
         return nullptr;
     }
-
-
     std::string FnName = cur_token_.content;
     getNextToken();
-
     if (cur_token_.type != TokenType::lParenthesis) {
         error("Expected '(' in prototype");
         return nullptr;
     }
-
     // Read the list of argument names.
     std::vector<Variable> ArgNames;
     // std::vector<std::pair<std::string, std::string>> ArgNames;
