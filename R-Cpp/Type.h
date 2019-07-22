@@ -15,9 +15,33 @@ struct VarType
         
     }
 
+    bool operator==(const VarType& other) const;
+
+    bool operator!=(const VarType& other) const;
+    bool operator<(const VarType& other) const;
+
     std::string typeName;
     std::vector<VarType> templateArgs;
     bool isConst;
+};
+
+struct VarTypeComparator
+{
+    bool operator()(const VarType& lhs, const VarType& rhs) const
+    {
+        if (lhs.typeName == rhs.typeName) {
+            if (lhs.templateArgs.size() == rhs.templateArgs.size()) {
+                size_t i = 0;
+                while (i < lhs.templateArgs.size()) {
+                    if (lhs.templateArgs[i] != rhs.templateArgs[i])
+                        return lhs.templateArgs[i] < rhs.templateArgs[i];
+                }
+                return false;
+            }
+            return lhs.templateArgs.size() < rhs.templateArgs.size();
+        }
+        return lhs.typeName < rhs.typeName;
+    }
 };
 
 struct Variable
@@ -50,17 +74,15 @@ struct Class
 {
     Class(){}
 
-    Class(const std::string& n)
-        :name(n){
+    Class(const VarType& n)
+        :type(n){
     }
 
-    std::string name;
+    VarType type;
     std::vector<Variable> memberVariables;
     std::vector<::Function> memberFunctions;
-    llvm::Type* type;
+    llvm::Type* type_llvm;
 };
-
-
 
 llvm::Type* get_builtin_type(const std::string& s, CodeGenerator& cg);
 llvm::Type* get_type(VarType t, CodeGenerator& cg);

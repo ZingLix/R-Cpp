@@ -1,6 +1,5 @@
 #include "AST.h"
 #include "CodeGenerator.h"
-#include "Type.h"
 #include "llvm/IR/Constants.h"
 #include <iostream>
 using namespace llvm;
@@ -266,13 +265,13 @@ llvm::Value* CallExprAST::generateCode(CodeGenerator& cg) {
 
 llvm::Function* PrototypeAST::generateCode(CodeGenerator& cg) {
     std::vector<llvm::Type*> ArgT;
-    if (ClassName != "") Args.push_back(Variable("this",ClassName));
+    if (ClassType.typeName != "") Args.push_back(Variable("this", ClassType));
     for(auto& t:Args) {
         auto type = get_type(t.type,cg);
        // if (!type) type = get_builtin_type(t.type,cg);
         if(!type) return LogErrorF("Unknown type.");
         if (t.name == "this") 
-            ArgT.push_back(PointerType::getUnqual(cg.symbol().getType(ClassName)));
+            ArgT.push_back(PointerType::getUnqual(cg.symbol().getType(ClassType)));
         else ArgT.push_back(type);
     }
     auto FT = FunctionType::get(get_builtin_type("i32",cg), ArgT, false);
@@ -305,9 +304,9 @@ llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
         i++;
     }
     bool hasReturn = false;
-    if(getClassName()!="")
+    if(getClassType().typeName!="")
     {
-        auto c = cg.symbol().getClass(getClassName());
+        auto c = cg.symbol().getClass(getClassType());
         int i = 0;
         for(auto& v:c.memberVariables)
         {
@@ -350,8 +349,8 @@ llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
 
 llvm::StructType* ClassAST::generateCode(CodeGenerator& cg)
 {
-    auto type = StructType::create(cg.context(), c.name);
-    cg.symbol().addClass(c.name, c);
+    auto type = StructType::create(cg.context(), c.type.typeName);
+    cg.symbol().addClass(c.type, c);
     std::vector<Type*> members;
     for(auto m:c.memberVariables)
     {
@@ -362,7 +361,7 @@ llvm::StructType* ClassAST::generateCode(CodeGenerator& cg)
         //else members.push_back(t);
     }
     type->setBody(members);
-    cg.symbol().setType(c.name,type);
+    cg.symbol().setType(c.type,type);
     //for(auto fn:c.memberFunctions)
     //{
     //    cg.symbol().getFunction(fn.name)

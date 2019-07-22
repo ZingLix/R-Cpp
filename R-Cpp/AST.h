@@ -5,6 +5,7 @@
 #include "Operator.h"
 #include <llvm/IR/Value.h>
 #include "CodeGenerator.h"
+#include "Type.h"
 
 class ExprAST
 {
@@ -182,7 +183,7 @@ class PrototypeAST
 {
     std::string Name;
     std::vector<Variable> Args;
-    std::string ClassName;
+    VarType ClassType;
 public:
     PrototypeAST(const std::string& name, std::vector<Variable> Args)
         : Name(name), Args(std::move(Args)) {
@@ -195,8 +196,8 @@ public:
         return Args;
     }
     llvm::Function* generateCode(CodeGenerator& cg);
-    void setClassName(const std::string& className) { this->ClassName = className; }
-    std::string getClassName() { return ClassName; }
+    void setClassType(const VarType& className) { this->ClassType = className; }
+    VarType getClassType() { return ClassType; }
 };
 
 class FunctionAST
@@ -213,8 +214,8 @@ public:
     ~FunctionAST() {}
     llvm::Function* generateCode(CodeGenerator& cg);
     std::string getName() { return Proto->getName(); }
-    void setClassName(const std::string& className) { Proto->setClassName(className); }
-    std::string getClassName() { return Proto->getClassName();}
+    void setClassType(const VarType& className) { Proto->setClassType(className); }
+    VarType getClassType() { return Proto->getClassType();}
     std::vector<Variable>& Arg() {
         return Proto->Arg();
     }

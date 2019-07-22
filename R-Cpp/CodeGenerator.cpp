@@ -1,5 +1,4 @@
 #include "CodeGenerator.h"
-#include "Type.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/TargetRegistry.h"

@@ -1,6 +1,46 @@
 #include "Type.h"
 #include "CodeGenerator.h"
 
+bool VarType::operator==(const VarType& other) const
+{
+    if (typeName == other.typeName)
+    {
+        if (templateArgs.size() == other.templateArgs.size())
+        {
+            size_t i = 0;
+            while (i < templateArgs.size())
+            {
+                if (templateArgs[i] != other.templateArgs[i])
+                    return false;
+            }
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+bool VarType::operator!=(const VarType& other) const
+{
+    return !operator==(other);
+}
+
+bool VarType::operator<(const VarType& other) const
+{
+    if (typeName == other.typeName) {
+        if (templateArgs.size() == other.templateArgs.size()) {
+            size_t i = 0;
+            while (i < templateArgs.size()) {
+                if (templateArgs[i] != other.templateArgs[i])
+                    return templateArgs[i]<other.templateArgs[i];
+            }
+            return false;
+        }
+        return templateArgs.size()<other.templateArgs.size();
+    }
+    return typeName<other.typeName;
+}
+
 llvm::Type* get_builtin_type(const std::string& s, CodeGenerator& cg) {
     if (s == "i32") return llvm::Type::getInt32Ty(cg.context());
     if (s == "i64") return llvm::Type::getInt64Ty(cg.context());

@@ -50,15 +50,15 @@ void SymbolTable::addFunction(const std::string& name, ::Function func)
     return ::Function();
 }
 
-bool SymbolTable::hasType(const std::string& name) {
-    if(!is_builtin_type(name))
+bool SymbolTable::hasType(const VarType& t) {
+    if(!is_builtin_type(t.typeName))
     {
-        return getClass(name).name!="";
+        return getClass(t).type.typeName !="";
     }
     return true;
 }
 
-void SymbolTable::addClass(const std::string& name, Class c)
+void SymbolTable::addClass(const VarType& name, Class c)
 {
     NamedClass.back()[name] = c;
 }
@@ -70,21 +70,21 @@ Class SymbolTable::getClass(const VarType& type)
         auto t = it->find(type.typeName);
         if (t != it->end()) return t->second;
     }
-    return Class("");
+    return Class();
 }
 
 
-llvm::Type* SymbolTable::getType(VarType type)
+llvm::Type* SymbolTable::getType(const VarType& type)
 {
     if (is_builtin_type(type.typeName)) return nullptr;
-    return getClass(type.typeName).type;
+    return getClass(type.typeName).type_llvm;
 }
 
-void SymbolTable::setType(VarType type, llvm::Type* tp)
+void SymbolTable::setType(const VarType& type, llvm::Type* tp)
 {
     for (auto it = NamedClass.rbegin(); it != NamedClass.rend(); ++it) {
         auto t = it->find(type.typeName);
-        if (t != it->end()) (t->second).type=tp;
+        if (t != it->end()) (t->second).type_llvm=tp;
     }
 }
 

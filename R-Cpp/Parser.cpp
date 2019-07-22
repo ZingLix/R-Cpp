@@ -67,7 +67,7 @@ std::unique_ptr<ExprAST> Parser::ParseIdentifierExpr() {
     auto idname = cur_token_.content;
     getNextToken();
     // is defining a identifier
- //   if (cur_token_.type == TokenType::Identifier||cur_token_.type==TokenType::lAngle) {
+ //   if (cur_token_.type_llvm == TokenType::Identifier||cur_token_.type_llvm==TokenType::lAngle) {
     if(symbol_->hasType(idname)&&(cur_token_.type == TokenType::Identifier || cur_token_.type == TokenType::lAngle)){
         return ParseVaribleDefinition(idname);
     }
@@ -363,7 +363,7 @@ std::unique_ptr<ExprAST> Parser::ParseIfExpr() {
     getNextToken();  // eat if
     auto cond = ParseParenExpr();
     if (!cond) return nullptr;
- //   if (cur_token_.type != TokenType::lBrace)
+ //   if (cur_token_.type_llvm != TokenType::lBrace)
  //       return LogError("Expected {.");
     auto then = ParseBlock();
     if(cur_token_.type==TokenType::Else) {
@@ -425,7 +425,7 @@ std::unique_ptr<PrototypeAST> Parser::ParsePrototype() {
         }
         if(cur_token_.type!=TokenType::Identifier||!symbol_->hasType(cur_token_.content))
         {
-            error("Unknown type.");
+            error("Unknown type_llvm.");
             return nullptr;
         }
         retType = cur_token_.content;
@@ -536,7 +536,7 @@ std::unique_ptr<ClassAST> Parser::ParseClass()
             auto fn = ParseFunction();
             Function f(fn->getName(), fn->Arg());
             c.memberFunctions.push_back(f);
-            fn->setClassName(c.name);
+            fn->setClassType(c.type);
             expr_.push_back(std::move(fn));
             symbol_->addFunction(f.name, f);
         }
