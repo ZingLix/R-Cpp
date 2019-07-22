@@ -6,17 +6,30 @@
 
 class CodeGenerator;
 
+struct VarType
+{
+    VarType():isConst(false){}
+    VarType(std::string type,bool isconst=false)
+        :typeName(type),isConst(isconst)
+    {
+        
+    }
+
+    std::string typeName;
+    std::vector<VarType> templateArgs;
+    bool isConst;
+};
+
 struct Variable
 {
     Variable() :alloc(nullptr){}
-    Variable(const std::string& n,const std::string& t,llvm::AllocaInst* a=nullptr,bool isCons=false)
-        :name(n),type(t),alloc(a),isConst(isCons)
+    Variable(const std::string& n,const VarType& t,llvm::AllocaInst* a=nullptr)
+        :name(n),type(t),alloc(a)
     { }
 
     std::string name;
-    std::string type;
+    VarType type;
     llvm::AllocaInst* alloc;
-    bool isConst;
 };
 
 struct Function
@@ -47,7 +60,10 @@ struct Class
     llvm::Type* type;
 };
 
+
+
 llvm::Type* get_builtin_type(const std::string& s, CodeGenerator& cg);
+llvm::Type* get_type(VarType t, CodeGenerator& cg);
 
 llvm::Value* get_builtin_type_default_value(const std::string& s, CodeGenerator& cg);
 

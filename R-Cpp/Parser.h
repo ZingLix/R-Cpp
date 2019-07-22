@@ -27,8 +27,8 @@ public:
     std::unique_ptr<ClassAST> ParseClass();
     std::vector<std::unique_ptr<ExprAST>> ParseParenExprList();
     std::vector<std::unique_ptr<ExprAST>> ParseSquareExprList();
-    std::vector<std::unique_ptr<ExprAST>> ParseAngleExprList();
-
+    std::vector<VarType> ParseAngleExprList();
+    
     void HandleDefinition();
     void HandleClass();
     void MainLoop();
@@ -40,6 +40,7 @@ private:
     void error(const std::string& errmsg);
     std::unique_ptr<ExprAST> MergeExpr(std::unique_ptr<ExprAST>, std::unique_ptr<ExprAST>, OperatorType);
     std::vector<std::unique_ptr<ExprAST>> ParseExprList(TokenType endToken);
+    VarType ParseType();
 
     Lexer lexer_;
     Token cur_token_;

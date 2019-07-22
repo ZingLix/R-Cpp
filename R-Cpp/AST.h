@@ -2,7 +2,6 @@
 #include <string>
 #include <memory>
 #include <vector>
-#include "Token.h"
 #include "Operator.h"
 #include <llvm/IR/Value.h>
 #include "CodeGenerator.h"
@@ -10,15 +9,19 @@
 class ExprAST
 {
 public:
-    ExprAST(const std::string& s):type(s){}
-    std::string getType()
+    ExprAST(const VarType& s) :type(s) {}
+    VarType getType()
     {
         return type;
+    }
+    std::string getTypeName()
+    {
+        return type.typeName;
     }
     virtual ~ExprAST() = default;
     virtual llvm::Value* generateCode(CodeGenerator& cg) =0;
 protected:
-    std::string type;
+    VarType type;
 };
 
 class AllocAST
@@ -53,7 +56,7 @@ private:
 class VariableExprAST:public ExprAST,public AllocAST
 {
 public:
-    VariableExprAST(const std::string& n, const std::string& t);
+    VariableExprAST(const std::string& n, const VarType& t);
     llvm::Value* generateCode(CodeGenerator& cg) override;
     std::string getName() { return name; }
 
@@ -77,7 +80,7 @@ class IfExprAST :public ExprAST
 public:
     IfExprAST(std::unique_ptr<ExprAST> condition,
         std::unique_ptr<BlockExprAST> then, std::unique_ptr<BlockExprAST> els)
-        :ExprAST("void"), Cond(std::move(condition)),Then(std::move(then)),
+        :ExprAST(VarType("null")), Cond(std::move(condition)),Then(std::move(then)),
         /*ElseIf(nullptr),*/ Else(std::move(els))
     { }
     //IfExprAST(std::unique_ptr<ExprAST> condition,
@@ -88,7 +91,7 @@ public:
     //}
     IfExprAST(std::unique_ptr<ExprAST> condition,
         std::unique_ptr<BlockExprAST> then)
-        :ExprAST("void"), Cond(std::move(condition)), Then(std::move(then)),
+        :ExprAST(VarType("null")), Cond(std::move(condition)), Then(std::move(then)),
         /*ElseIf(nullptr),*/ Else(nullptr) {
     }
     llvm::Value* generateCode(CodeGenerator& cg) override;
@@ -103,16 +106,16 @@ private:
 class VariableDefAST:public ExprAST
 {
 public:
-    VariableDefAST(const std::string& type_name, const std::string& var_name,
+    VariableDefAST(const VarType& type_name, const std::string& var_name,
         std::unique_ptr<ExprAST> init_value);
 
-    VariableDefAST(const std::string& type_name, const std::string& var_name);
+    VariableDefAST(const VarType& type_name, const std::string& var_name);
     llvm::Value* generateCode(CodeGenerator& cg) override;
-    std::string getVarType() { return typename_; }
+    VarType getVarType() { return type_; }
     std::string getVarName() { return varname_; }
-    void setTemplateArgs(std::vector<std::unique_ptr<ExprAST>> args)
+    void setTemplateArgs(std::vector<VarType> args)
     {
-        template_args_ = std::move(args);
+        type_.templateArgs = args;
     }
 
     void setInitValue(std::unique_ptr<ExprAST> initVal)
@@ -121,9 +124,8 @@ public:
     }
 
 private:
-    std::string typename_;
+    VarType type_;
     std::string varname_;
-    std::vector<std::unique_ptr<ExprAST>> template_args_;
     std::unique_ptr<ExprAST> init_value_;
 };
 
@@ -146,7 +148,6 @@ public:
 private:
     OperatorType Op;
     std::unique_ptr<ExprAST> LHS, RHS;
-    std::string LType, RType;
 };
 
 class ForExprAST:public ExprAST
@@ -154,7 +155,7 @@ class ForExprAST:public ExprAST
 public:
     ForExprAST(std::unique_ptr<ExprAST> start, std::unique_ptr<ExprAST> cond,
         std::unique_ptr<ExprAST> end, std::unique_ptr<BlockExprAST> body)
-        :ExprAST("void"), Start(std::move(start)),Cond(std::move(cond)),
+        :ExprAST(VarType("null")), Start(std::move(start)),Cond(std::move(cond)),
          End(std::move(end)),Body(std::move(body))
     { }
     llvm::Value* generateCode(CodeGenerator& cg) override;
@@ -245,7 +246,7 @@ class MemberAccessAST:public ExprAST,public AllocAST
 
 public:
     MemberAccessAST(std::unique_ptr<ExprAST> Var, std::unique_ptr<ExprAST> Member,
-                    OperatorType Op, const std::string& retType);
+                    OperatorType Op, const VarType& retType);
     llvm::Value* generateCode(CodeGenerator& cg) override;
 };
 
@@ -257,10 +258,10 @@ class UnaryExprAST:public ExprAST,public AllocAST
 
 public:
     UnaryExprAST(std::unique_ptr<ExprAST> var,OperatorType Op, std::vector<std::unique_ptr<ExprAST>> Args)
-        :ExprAST(""),expr(std::move(var)),op(Op),args(std::move(Args))
+        :ExprAST(VarType("")),expr(std::move(var)),op(Op),args(std::move(Args))
     { }
     UnaryExprAST(std::unique_ptr<ExprAST> var, OperatorType Op)
-        :ExprAST(""),expr(std::move(var)), op(Op), args()
+        :ExprAST(VarType("")),expr(std::move(var)), op(Op), args()
     { }
     llvm::Value* generateCode(CodeGenerator& cg) override;
 

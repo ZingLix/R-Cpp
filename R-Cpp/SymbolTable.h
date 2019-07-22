@@ -6,26 +6,19 @@ class SymbolTable
 {
 public:
     SymbolTable();
-
     void createNewScope();
-
     void destroyScope();
-
     Variable getValue(const std::string& name);
-
     void setValue(const std::string& name, Variable val);
-
     void addFunction(const std::string& name, ::Function func);
-
     ::Function getFunction(const std::string& name);
-
     bool hasType(const std::string& name);
     void addClass(const std::string& name, Class c);
-    Class getClass(const std::string& name);
-    llvm::Type* getType(const std::string& name);
-    void setType(const std::string& name, llvm::Type* t);
-    std::string getClassMemberType(const std::string& className, const std::string& memberName);
-    int getClassMemberIndex(const std::string& className, const std::string& memberName);
+    Class getClass(const VarType& name);
+    llvm::Type* getType(VarType type);
+    void setType(VarType type, llvm::Type* t);
+    VarType getClassMemberType(const VarType& className, const std::string& memberName);
+    int getClassMemberIndex(const VarType& className, const std::string& memberName);
 
 private:
     std::vector<std::map<std::string, Variable>> NamedValues;

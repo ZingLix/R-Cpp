@@ -10,7 +10,7 @@ int main(int argc,char **argv)
         return -1;
     }
     Parser l(argv[1]);
-    //Parser l("/home/zinglix/example.txt");
+   // Parser l("/home/zinglix/example.txt");
     l.MainLoop();
     CodeGenerator cg;
     for (auto& expr : l.Classes()) {

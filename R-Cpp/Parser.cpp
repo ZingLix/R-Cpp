@@ -136,16 +136,17 @@ std::unique_ptr<ExprAST> Parser::ParseForExpr() {
 }
 
 std::unique_ptr<ExprAST> Parser::ParseVaribleDefinition(const std::string& type_name) {
-    std::vector<std::unique_ptr<ExprAST>> template_args;
+    std::vector<VarType> template_args;
     if(cur_token_.type==TokenType::lAngle)
     {
         template_args = ParseAngleExprList();
     }
     auto varname = cur_token_.content;
-    symbol_->setValue(varname, Variable(varname, type_name));
+    auto type = VarType(type_name);
+    type.templateArgs = template_args;
+    symbol_->setValue(varname, Variable(varname, type));
     getNextToken();
-    auto expr = std::make_unique<VariableDefAST>(type_name, varname);
-    if (template_args.size() != 0) expr->setTemplateArgs(std::move(template_args));
+    auto expr = std::make_unique<VariableDefAST>(type, varname);
     if (cur_token_.type == TokenType::Equal) {
         // definition with initiate value
         getNextToken();   // eat =
@@ -172,15 +173,15 @@ std::unique_ptr<ExprAST> Parser::MergeExpr(std::unique_ptr<ExprAST> LHS, std::un
 {
     if (Op != OperatorType::MemberAccessP) {
         return std::make_unique<BinaryExprAST>(Op, std::move(LHS),
-            std::move(RHS), builtinOperatorReturnType(LHS->getType(), RHS->getType(), Op));
+            std::move(RHS), builtinOperatorReturnType(LHS->getTypeName(), RHS->getTypeName(), Op));
     }
-    std::string retType;
+    VarType retType;
     auto rh = dynamic_cast<VariableExprAST*>(RHS.get());
     auto rfunc = dynamic_cast<CallExprAST*>(RHS.get());
     if (rh != nullptr) {
-        retType = symbol_->getClassMemberType(LHS->getType(), rh->getName());
-        if (retType == "") {
-            error("No such member in " + LHS->getType() + ".");
+        retType = symbol_->getClassMemberType(LHS->getTypeName(), rh->getName());
+        if (retType.typeName == "") {
+            error("No such member in " + LHS->getTypeName() + ".");
             return nullptr;
         }
     } else if (rfunc != nullptr) {
@@ -633,20 +634,38 @@ std::vector<std::unique_ptr<ExprAST>> Parser::ParseSquareExprList()
     return exprs;
 }
 
-std::vector<std::unique_ptr<ExprAST>> Parser::ParseAngleExprList()
+std::vector<VarType> Parser::ParseAngleExprList()
 {
     getNextToken(); // eat <
     //auto exprs = ParseExprList(TokenType::rAngle);
-    std::vector<std::unique_ptr<ExprAST>> exprs;
-    while (true) {
-        exprs.push_back(ParsePrimary());
-        if (cur_token_.type == TokenType::rAngle) break;
-        if (cur_token_.type != TokenType::Comma) {
-            error("Expect , to split expressions.");
-            return std::vector<std::unique_ptr<ExprAST>>();
+    std::vector<VarType> exprs;
+    while (cur_token_.type != TokenType::rAngle) {
+        exprs.push_back(ParseType());
+        if(cur_token_.type==TokenType::Comma)
+        {
+            getNextToken();
+        }else if(cur_token_.type!=TokenType::rAngle)
+        {
+            error("Expect , to split typename or > to end list.");
+            return std::vector<VarType>();
         }
-        getNextToken();  // eat ,
     }
     getNextToken();  // eat >
     return exprs;
+}
+
+VarType Parser::ParseType()
+{
+    /*bool isconst = false;
+    if(cur_token_.content=="const")
+    {
+        isconst = true;
+    }*/
+    auto type = VarType(cur_token_.content);
+    getNextToken();
+    if(cur_token_.type==TokenType::lAngle)
+    {
+        type.templateArgs = ParseAngleExprList();
+    }
+    return VarType(type);
 }

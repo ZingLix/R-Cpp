@@ -63,42 +63,42 @@ void SymbolTable::addClass(const std::string& name, Class c)
     NamedClass.back()[name] = c;
 }
 
-Class SymbolTable::getClass(const std::string& name)
+Class SymbolTable::getClass(const VarType& type)
 {
     for(auto it=NamedClass.rbegin();it!=NamedClass.rend();++it)
     {
-        auto t = it->find(name);
+        auto t = it->find(type.typeName);
         if (t != it->end()) return t->second;
     }
     return Class("");
 }
 
 
-llvm::Type* SymbolTable::getType(const std::string& name)
+llvm::Type* SymbolTable::getType(VarType type)
 {
-    if (is_builtin_type(name)) return nullptr;
-    return getClass(name).type;
+    if (is_builtin_type(type.typeName)) return nullptr;
+    return getClass(type.typeName).type;
 }
 
-void SymbolTable::setType(const std::string& name, llvm::Type* type)
+void SymbolTable::setType(VarType type, llvm::Type* tp)
 {
     for (auto it = NamedClass.rbegin(); it != NamedClass.rend(); ++it) {
-        auto t = it->find(name);
-        if (t != it->end()) (t->second).type=type;
+        auto t = it->find(type.typeName);
+        if (t != it->end()) (t->second).type=tp;
     }
 }
 
-std::string SymbolTable::getClassMemberType(const std::string& className, const std::string& memberName)
+VarType SymbolTable::getClassMemberType(const VarType& className, const std::string& memberName)
 {
     auto c = getClass(className);
     for(auto& v:c.memberVariables)
     {
         if (v.name == memberName) return v.type;
     }
-    return "";
+    return VarType("");
 }
 
-int SymbolTable::getClassMemberIndex(const std::string& className, const std::string& memberName)
+int SymbolTable::getClassMemberIndex(const VarType& className, const std::string& memberName)
 {
     auto c = getClass(className);
     for(auto it=c.memberVariables.begin();it!=c.memberVariables.end();++it)

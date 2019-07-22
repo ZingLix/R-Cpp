@@ -39,3 +39,10 @@ bool is_builtin_type(const std::string& s) {
         s == "u64" || s == "bool" || s == "float" ||
         s == "double" || s == "Arr");
 }
+
+llvm::Type* get_type(VarType t, CodeGenerator& cg)
+{
+    auto type=  cg.symbol().getType(t);
+    if (!type) type = get_builtin_type(t.typeName, cg);
+    return type;
+}
