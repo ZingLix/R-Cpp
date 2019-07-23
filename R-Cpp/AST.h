@@ -169,35 +169,34 @@ private:
 class CallExprAST:public ExprAST
 {
 public:
-    CallExprAST(const std::string& callee, std::vector<std::unique_ptr<ExprAST>> args, const std::string& t);
+    CallExprAST(const std::string& callee, std::vector<std::unique_ptr<ExprAST>> args, const VarType& t);
     llvm::Value* generateCode(CodeGenerator& cg) override; 
-    void setThis(llvm::Value* This);
+    void setThis(std::unique_ptr<ExprAST> This);
     const std::string& getName() { return Callee; }
 private:
     std::string Callee;
     std::vector<std::unique_ptr<ExprAST>> Args;
-    llvm::Value* thisPtr;
+    std::unique_ptr<ExprAST> thisPtr;
 };
 
 class PrototypeAST
 {
-    std::string Name;
-    std::vector<Variable> Args;
-    VarType ClassType;
+    ::Function F;
 public:
-    PrototypeAST(const std::string& name, std::vector<Variable> Args)
-        : Name(name), Args(std::move(Args)) {
+    PrototypeAST(const ::Function& func)
+        : F(func) {
 
     }
     ~PrototypeAST() {}
-    const std::string& getName() const { return Name; }
+    const std::string& getName() const { return F.name; }
     std::vector<Variable>& Arg()
     {
-        return Args;
+        return F.args;
     }
     llvm::Function* generateCode(CodeGenerator& cg);
-    void setClassType(const VarType& className) { this->ClassType = className; }
-    VarType getClassType() { return ClassType; }
+    void setClassType(const VarType& className) { F.classType = className; }
+    VarType getClassType() { return F.classType; }
+    ::Function getFunction() { return F; }
 };
 
 class FunctionAST
@@ -223,6 +222,7 @@ public:
     {
         return Body->instructions();
     }
+    ::Function getFunction() { return Proto->getFunction(); }
 };
 
 class ClassAST
@@ -242,11 +242,11 @@ public:
 class MemberAccessAST:public ExprAST,public AllocAST
 {
     std::unique_ptr<ExprAST> var;
-    std::unique_ptr<ExprAST> member;
+    std::string member;
     OperatorType op;
 
 public:
-    MemberAccessAST(std::unique_ptr<ExprAST> Var, std::unique_ptr<ExprAST> Member,
+    MemberAccessAST(std::unique_ptr<ExprAST> Var, std::string Member,
                     OperatorType Op, const VarType& retType);
     llvm::Value* generateCode(CodeGenerator& cg) override;
 };

@@ -108,3 +108,12 @@ int SymbolTable::getClassMemberIndex(const VarType& className, const std::string
     return -1;
 }
 
+void SymbolTable::addRawFunction(const ::Function& func)
+{
+    FunctionOverloadList[func.name].push_back(func);
+}
+
+std::vector<::Function>& SymbolTable::getRawFunction(const std::string& name)
+{
+    return FunctionOverloadList[name];
+}

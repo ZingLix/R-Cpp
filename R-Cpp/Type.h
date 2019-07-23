@@ -11,37 +11,15 @@ struct VarType
     VarType():isConst(false){}
     VarType(std::string type,bool isconst=false)
         :typeName(type),isConst(isconst)
-    {
-        
-    }
+    { }
 
     bool operator==(const VarType& other) const;
-
     bool operator!=(const VarType& other) const;
     bool operator<(const VarType& other) const;
 
     std::string typeName;
     std::vector<VarType> templateArgs;
     bool isConst;
-};
-
-struct VarTypeComparator
-{
-    bool operator()(const VarType& lhs, const VarType& rhs) const
-    {
-        if (lhs.typeName == rhs.typeName) {
-            if (lhs.templateArgs.size() == rhs.templateArgs.size()) {
-                size_t i = 0;
-                while (i < lhs.templateArgs.size()) {
-                    if (lhs.templateArgs[i] != rhs.templateArgs[i])
-                        return lhs.templateArgs[i] < rhs.templateArgs[i];
-                }
-                return false;
-            }
-            return lhs.templateArgs.size() < rhs.templateArgs.size();
-        }
-        return lhs.typeName < rhs.typeName;
-    }
 };
 
 struct Variable
@@ -58,16 +36,24 @@ struct Variable
 
 struct Function
 {
-    Function() :alloc(nullptr) {}
+    Function() :alloc(nullptr),isExternal(false) {}
     Function(const std::string& n, std::vector<Variable>& t,
-        const std::string& retType="i32" , llvm::Function* a=nullptr)
-        :name(n), args(t),returnType(retType), alloc(a) {
+        const VarType& retType, llvm::Function* a=nullptr)
+        :name(n), args(t),returnType(retType), alloc(a),isExternal(false) {
     }
 
+    static std::string mangle(const Function& F);
+private:
+    static std::string mangle(const std::string& name);
+    static std::string mangle(const VarType& type);
+
+public:
     std::string name;
     std::vector<Variable> args;
-    std::string returnType;
+    VarType returnType;
+    VarType classType;
     llvm::Function* alloc;
+    bool isExternal;
 };
 
 struct Class

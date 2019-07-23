@@ -21,6 +21,7 @@ public:
     std::unique_ptr<ExprAST> ParseExpression();
     std::unique_ptr<ExprAST> ParseIfExpr();
     std::unique_ptr<ExprAST> ParseForExpr();
+    std::unique_ptr<ExprAST> ParseMemberAccess(std::unique_ptr<ExprAST> lhs,OperatorType Op);
     std::unique_ptr<PrototypeAST> ParsePrototype();
     std::unique_ptr<FunctionAST> ParseFunction();
     std::unique_ptr<BlockExprAST> ParseBlock();
@@ -47,4 +48,5 @@ private:
     std::vector<std::unique_ptr<FunctionAST>> expr_;
     std::vector<std::unique_ptr<ClassAST>> class_;
     std::shared_ptr<SymbolTable> symbol_;
+    VarType cur_type_;
 };

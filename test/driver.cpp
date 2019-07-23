@@ -1,11 +1,31 @@
 #include "gtest/gtest.h"
 
 extern "C"{
-    int fibonacci(int);
-    int sum(int);
-    int precedence();
-    int classMemberFunction(int);
-    int array(int);
+    int _R9fibonacciI3i32(int);
+    int _R3sumI3i32(int);
+    int _R10precedence();
+    int _R19classMemberFunctionI3i32(int);
+    int _R5arrayI3i32(int);
+}
+
+int fibonacci(int i){
+    return _R9fibonacciI3i32(i);
+}
+
+int sum(int i){
+    return _R3sumI3i32(i);
+}
+
+int precedence(){
+    return _R10precedence();
+}
+
+int classMemberFunction(int i){
+    return _R19classMemberFunctionI3i32(i);
+}
+
+int array(int i){
+    return _R5arrayI3i32(i);
 }
 
 int Fibonacci(int i){

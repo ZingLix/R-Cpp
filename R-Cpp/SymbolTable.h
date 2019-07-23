@@ -19,12 +19,15 @@ public:
     void setType(const VarType& type, llvm::Type* t);
     VarType getClassMemberType(const VarType& className, const std::string& memberName);
     int getClassMemberIndex(const VarType& className, const std::string& memberName);
+    void addRawFunction(const ::Function& func);
+    std::vector<::Function>& getRawFunction(const std::string& name);
 
 private:
     std::vector<std::map<std::string, Variable>> NamedValues;
     std::vector<std::map<std::string, ::Function>> NamedFunctions;
     std::vector<std::map<VarType, Class>> NamedClass;
-//    std::map < std::pair<std::string, OperatorType>, std::map<std::string, std::function<
+    std::map<std::string, std::vector<::Function>> FunctionOverloadList;
+    //    std::map < std::pair<std::string, OperatorType>, std::map<std::string, std::function<
 //        llvm::Value* (llvm::Value*, llvm::Value*, CodeGenerator&)>>> OperatorMap;
 //    std::map < std::string, std::map<OperatorType,
 //        std::map<std::string, std::function<

@@ -86,3 +86,26 @@ llvm::Type* get_type(VarType t, CodeGenerator& cg)
     if (!type) type = get_builtin_type(t.typeName, cg);
     return type;
 }
+
+std::string Function::mangle(const Function& F)
+{
+    std::string mangledName = "_";
+    mangledName += F.isExternal ? "Z" : "R";
+    if (F.classType.typeName != "") mangledName += mangle(F.classType);
+    mangledName += mangle(F.name);
+    for(auto& v:F.args)
+    {
+        mangledName += mangle(v.type);
+    }
+    return mangledName;
+}
+
+std::string Function::mangle(const std::string& name)
+{
+    return std::to_string(name.length()) + name;
+}
+
+std::string Function::mangle(const VarType& type)
+{
+    return "I" + std::to_string(type.typeName.length()) + type.typeName;
+}
