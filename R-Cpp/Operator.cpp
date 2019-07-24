@@ -239,3 +239,19 @@ std::string builtinOperatorReturnType(const std::string& ltype,const std::string
     if (ltype == "float" || rtype == "float") return "float";
     return "i32";
 }
+
+bool isBinaryOperator(OperatorType t)
+{
+    if (isUnaryOperator(t)) return false;
+    if (t == OperatorType::Comma) return false;
+    return true;
+}
+
+bool isUnaryOperator(OperatorType t)
+{
+    return t == OperatorType::PostIncrement || t == OperatorType::PostDecrement ||
+        t == OperatorType::FunctionCall || t == OperatorType::Subscript ||
+        t == OperatorType::MemberAccessP || t == OperatorType::MemberAccessA ||
+        t == OperatorType::LogicalNOT || t == OperatorType::BitwiseNOT ||
+        t == OperatorType::Dereference;
+}

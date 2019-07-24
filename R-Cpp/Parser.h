@@ -38,6 +38,7 @@ public:
 private:
     Token& getNextToken();
     OperatorType getNextBinOperator();
+    OperatorType getNextUnaryOperator();
     void error(const std::string& errmsg);
     std::unique_ptr<ExprAST> MergeExpr(std::unique_ptr<ExprAST>, std::unique_ptr<ExprAST>, OperatorType);
     std::vector<std::unique_ptr<ExprAST>> ParseExprList(TokenType endToken);

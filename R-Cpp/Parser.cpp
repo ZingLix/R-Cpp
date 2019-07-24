@@ -30,14 +30,53 @@ std::unique_ptr<ExprAST> Parser::ParseStatement() {
 std::unique_ptr<ExprAST> Parser::ParsePrimary() {
     if (cur_token_.type == TokenType::Identifier) {
         auto e = ParseIdentifierExpr();
-        while (cur_token_.type == TokenType::lSquare || cur_token_.type == TokenType::lParenthesis || cur_token_.type == TokenType::Point) {
-            if (cur_token_.type == TokenType::lSquare) {
-                e = std::make_unique<UnaryExprAST>(std::move(e), OperatorType::Subscript, ParseSquareExprList());
-            } else if (cur_token_.type == TokenType::lParenthesis) {
-                e = std::make_unique<UnaryExprAST>(std::move(e), OperatorType::FunctionCall, ParseParenExprList());
-            } else if (cur_token_.type == TokenType::Point) {
+        while (cur_token_.type == TokenType::lSquare ||
+            cur_token_.type == TokenType::lParenthesis ||
+            cur_token_.type == TokenType::Point||
+            cur_token_.type==TokenType::Plus||
+            cur_token_.type==TokenType::Minus) 
+        {
+            auto type = e->getType();
+            if (cur_token_.type == TokenType::lSquare) 
+            {
+                if(type.typeName!="Arr")
+                {
+                    error("No suitable [] operator for " + type.typeName + ".");
+                    return nullptr;
+                }
+                e = std::make_unique<UnaryExprAST>(std::move(e), 
+                    OperatorType::Subscript, ParseSquareExprList(),type.templateArgs[0]);
+            } else if (cur_token_.type == TokenType::lParenthesis) 
+            {
+
+              //  e = std::make_unique<UnaryExprAST>(std::move(e), 
+              //      OperatorType::FunctionCall, ParseParenExprList());
+            } else if (cur_token_.type == TokenType::Point) 
+            {
                 getNextToken();
-                e = ParseMemberAccess(std::move(e), OperatorType::MemberAccessP);
+                e = ParseMemberAccess(std::move(e), 
+                    OperatorType::MemberAccessP);
+            }else if(cur_token_.type==TokenType::Plus)
+            {
+                if(lexer_.nextChar()=='+')
+                {  
+                    assert(getNextUnaryOperator() == OperatorType::PreIncrement);
+                    e = std::make_unique<UnaryExprAST>(std::move(e), OperatorType::PostIncrement,e->getType());
+                }else
+                {
+                    break;
+                }
+            }else if(cur_token_.type==TokenType::Minus)
+            {
+                auto c = lexer_.nextChar();
+                if(lexer_.nextChar()=='-')
+                {
+                    assert(getNextUnaryOperator() == OperatorType::PreDecrement);
+                    e= std::make_unique<UnaryExprAST>(std::move(e), OperatorType::PostDecrement, e->getType());
+                }else
+                {
+                    break;
+                }
             }
         }
         return e;
@@ -50,6 +89,12 @@ std::unique_ptr<ExprAST> Parser::ParsePrimary() {
     }
     if (cur_token_.type == TokenType::lParenthesis) {
         return ParseParenExpr();
+    }
+    auto o = getNextUnaryOperator();
+    if(o!=OperatorType::None)
+    {
+        auto e = ParsePrimary();
+        return std::make_unique<UnaryExprAST>(std::move(e),o,e->getType());
     }
     error("Unexpected token.");
     return nullptr;
@@ -371,6 +416,42 @@ OperatorType Parser::getNextBinOperator()
     }
     return TokenToBinOperator(first);
 }
+
+OperatorType Parser::getNextUnaryOperator()
+{
+    auto ret = [&](OperatorType o) {
+        getNextToken();
+        return o;
+    };
+    TokenType first = cur_token_.type;
+    getNextToken();
+    if(first==TokenType::Plus)
+    {
+        if (cur_token_.type == TokenType::Plus)
+            return ret(OperatorType::PreIncrement);
+        return OperatorType::Promotion;
+    }
+    if(first==TokenType::Minus)
+    {
+        if (cur_token_.type == TokenType::Minus)
+            return ret(OperatorType::PreDecrement);
+        return OperatorType::Negation;
+    }
+    if(first==TokenType::Exclam)
+    {
+        return OperatorType::LogicalNOT;
+    }
+    if(first==TokenType::Tilde)
+    {
+        return OperatorType::BitwiseNOT;
+    }
+    if(first==TokenType::Multiply)
+    {
+        return OperatorType::Dereference;
+    }
+    return OperatorType::None;
+}
+
 
 std::unique_ptr<ExprAST> Parser::ParseIfExpr() {
     getNextToken();  // eat if

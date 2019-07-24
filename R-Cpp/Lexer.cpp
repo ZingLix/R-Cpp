@@ -39,6 +39,12 @@ int Lexer::getCharNo()
     return charCount;
 }
 
+char Lexer::nextChar()
+{
+    return lastChar_;
+}
+
+
 Token Lexer::nextIdentifier()
 {
     // identifier: [a-zA-Z][a-zA-Z0-9]*

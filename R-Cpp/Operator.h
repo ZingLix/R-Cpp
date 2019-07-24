@@ -16,6 +16,8 @@ enum class OperatorType
     MemberAccessA,    // ->
     PreIncrement,     // ++a
     PreDecrement,     // --a
+    Promotion,        // +a
+    Negation,         // -a
     LogicalNOT,       // !
     BitwiseNOT,       // ~
     Dereference,      // *
@@ -64,3 +66,6 @@ llvm::Value* builtinTypeOperate(llvm::Value* LHS, const std::string& ltype,
     llvm::Value* RHS, const std::string& rtype, OperatorType op
     , CodeGenerator& cg);
 std::string builtinOperatorReturnType(const std::string& ltype, const std::string& rtype, OperatorType op);
+
+bool isBinaryOperator(OperatorType t);
+bool isUnaryOperator(OperatorType t);

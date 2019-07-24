@@ -10,6 +10,7 @@ public:
     Token nextToken();
     int getLineNo();
     int getCharNo();
+    char nextChar();
 
 private:
     Token nextIdentifier();

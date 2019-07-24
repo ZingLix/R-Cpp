@@ -78,7 +78,14 @@ llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
         auto type = ArrayType::get(elementType, size);
         auto alloc = cg.builder().CreateAlloca(type);
         cg.symbol().setValue(varname_, Variable(varname_, type_, alloc));
-    }else
+    }else if(type_.typeName=="__ptr")
+    {
+        auto elementType = get_type(type_.templateArgs[0], cg);
+        auto type = PointerType::get(elementType, 0);
+        auto alloc = cg.builder().CreateAlloca(type);
+        cg.symbol().setValue(varname_, Variable(varname_, type_, alloc));
+    }
+    else
     {
         auto type = get_type(type_,cg);
         auto alloc = cg.builder().CreateAlloca(type, nullptr, varname_);
@@ -90,7 +97,6 @@ llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
             cg.builder().CreateStore(InitVal, alloc);
         }
         cg.symbol().setValue(varname_, Variable(varname_, type_, alloc));
-
     }
 
     return Constant::getNullValue(Type::getDoubleTy(cg.context()));
@@ -401,17 +407,56 @@ llvm::Value* MemberAccessAST::generateCode(CodeGenerator& cg)
 llvm::Value* UnaryExprAST::generateCode(CodeGenerator& cg)
 {
     auto var = expr->generateCode(cg);
-    std::vector<Value*> values;
-    values.push_back(ConstantInt::get(cg.context(), llvm::APInt(32, 0, true)));
-    for(auto& a:args)
+    if(op==OperatorType::Subscript)
     {
-        values.push_back(a->generateCode(cg));
+        std::vector<Value*> values;
+        values.push_back(ConstantInt::get(cg.context(), llvm::APInt(32, 0, true)));
+        for (auto& a : args) {
+            values.push_back(a->generateCode(cg));
+        }
+        Value* ptr = cg.builder().CreateGEP(dynamic_cast<VariableExprAST*>(expr.get())->getAlloc(), values);
+        alloca_ = static_cast<AllocaInst*>(ptr);
+        type = expr->getType().templateArgs[0];
+        return cg.builder().CreateLoad(ptr);
+    }else if(op==OperatorType::PreIncrement)
+    {
+        auto alloc = dynamic_cast<AllocAST*>(expr.get())->getAlloc();
+        auto res = cg.builder().CreateAdd(var, ConstantInt::get(cg.context(), APInt(32, 1, true)));
+        cg.builder().CreateStore(res, alloc);
+        return cg.builder().CreateLoad(alloc);
+    }else if(op==OperatorType::PreDecrement)
+    {
+        auto alloc = dynamic_cast<AllocAST*>(expr.get())->getAlloc();
+        auto res = cg.builder().CreateSub(var, ConstantInt::get(cg.context(), APInt(32, 1, true)));
+        cg.builder().CreateStore(res, alloc);
+        return cg.builder().CreateLoad(alloc);
+    }else if(op==OperatorType::PostIncrement)
+    {
+        auto alloc = dynamic_cast<AllocAST*>(expr.get())->getAlloc();
+        auto tmp = cg.builder().CreateLoad(alloc);
+        auto res= cg.builder().CreateAdd(var, ConstantInt::get(cg.context(), APInt(32, 1, true)));
+        cg.builder().CreateStore(res, alloc);
+        return tmp;
+    }else if(op==OperatorType::PostDecrement)
+    {
+        auto alloc = dynamic_cast<AllocAST*>(expr.get())->getAlloc();
+        auto tmp = cg.builder().CreateLoad(alloc);
+        auto res = cg.builder().CreateSub(var, ConstantInt::get(cg.context(), APInt(32, 1, true)));
+        cg.builder().CreateStore(res, alloc);
+        return tmp;
+    }else if(op==OperatorType::Promotion)
+    {
+        return var;
+    }else if(op==OperatorType::Negation)
+    {
+        return cg.builder().CreateSub(ConstantInt::get(cg.context(), APInt(0, 32, true)), var);
+    }else if(op==OperatorType::LogicalNOT)
+    {
+        return cg.builder().CreateNot(var);
+    }else if(op==OperatorType::BitwiseNOT)
+    {
+        return cg.builder().CreateNot(var);
     }
-    //std::vector<llvm::Value*> indices(2);
-    //indices[0] = llvm::ConstantInt::get(cg.context(), llvm::APInt(32, 0, true));
-    //indices[1] = llvm::ConstantInt::get(cg.context(), llvm::APInt(32, 0, true));
-    Value* ptr = cg.builder().CreateGEP(dynamic_cast<VariableExprAST*>(expr.get())->getAlloc() , values);
-    alloca_ = static_cast<AllocaInst*>(ptr);
-    type = expr->getType().templateArgs[0];
-    return cg.builder().CreateLoad(ptr);
+    LogError("Unknown unary operator.");
+    return nullptr;
 }

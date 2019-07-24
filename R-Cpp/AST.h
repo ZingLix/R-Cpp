@@ -258,11 +258,11 @@ class UnaryExprAST:public ExprAST,public AllocAST
     std::vector<std::unique_ptr<ExprAST>> args;
 
 public:
-    UnaryExprAST(std::unique_ptr<ExprAST> var,OperatorType Op, std::vector<std::unique_ptr<ExprAST>> Args)
-        :ExprAST(VarType("")),expr(std::move(var)),op(Op),args(std::move(Args))
+    UnaryExprAST(std::unique_ptr<ExprAST> var,OperatorType Op, std::vector<std::unique_ptr<ExprAST>> Args, const VarType& type)
+        :ExprAST(type),expr(std::move(var)),op(Op),args(std::move(Args))
     { }
-    UnaryExprAST(std::unique_ptr<ExprAST> var, OperatorType Op)
-        :ExprAST(VarType("")),expr(std::move(var)), op(Op), args()
+    UnaryExprAST(std::unique_ptr<ExprAST> var, OperatorType Op,const VarType& type)
+        :ExprAST(type),expr(std::move(var)), op(Op), args()
     { }
     llvm::Value* generateCode(CodeGenerator& cg) override;
 
