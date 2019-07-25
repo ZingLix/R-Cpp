@@ -5,10 +5,18 @@
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Transforms/Utils.h"
+#include "llvm/Transforms/InstCombine/InstCombine.h"
+#include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Scalar/GVN.h"
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/STLExtras.h"
+#include <iostream>
+#include "Parser.h"
 
-CodeGenerator::CodeGenerator(): Builder(TheContext), TheModule(std::make_unique<llvm::Module>("RCpp", context())),
+CodeGenerator::CodeGenerator(Parser& p):parser_(p), Builder(TheContext), TheModule(std::make_unique<llvm::Module>("RCpp", context())),
                                 TheFPM(std::make_unique<llvm::legacy::FunctionPassManager>(TheModule.get())),
-                                Symbol(std::make_shared<SymbolTable>())
+                                Symbol(p.symbolTable())
 {
     // Promote allocas to registers.
     TheFPM->add(llvm::createPromoteMemoryToRegisterPass());
@@ -95,4 +103,24 @@ void CodeGenerator::output() {
 SymbolTable& CodeGenerator::symbol()
 {
     return *Symbol;
+}
+
+void CodeGenerator::generate()
+{
+    for(auto& c:parser_.Classes())
+    {
+        c->generateCode(*this)->print(llvm::errs());
+    }
+    for(auto& p:parser_.Prototypes())
+    {
+        p->generateCode(*this)->print(llvm::errs());
+    }
+    for (auto& c : parser_.Classes()) {
+        c->generateFunction_new(*this)->print(llvm::errs());
+    }
+    for(auto& f:parser_.AST())
+    {
+        f->generateCode(*this)->print(llvm::errs());
+    }
+    output();
 }

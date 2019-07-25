@@ -3,6 +3,8 @@
 #include "Lexer.h"
 #include <memory>
 
+class SymbolTable;
+
 class Parser
 {
 public:
@@ -21,6 +23,7 @@ public:
     std::unique_ptr<ExprAST> ParseExpression();
     std::unique_ptr<ExprAST> ParseIfExpr();
     std::unique_ptr<ExprAST> ParseForExpr();
+    std::unique_ptr<ExprAST> ParsePostOperator(std::unique_ptr<ExprAST> lhs);
     std::unique_ptr<ExprAST> ParseMemberAccess(std::unique_ptr<ExprAST> lhs,OperatorType Op);
     std::unique_ptr<PrototypeAST> ParsePrototype();
     std::unique_ptr<FunctionAST> ParseFunction();
@@ -35,6 +38,9 @@ public:
     void MainLoop();
     std::vector<std::unique_ptr<FunctionAST>>& AST();
     std::vector<std::unique_ptr<ClassAST>>& Classes();
+    std::vector<std::unique_ptr<PrototypeAST>>& Prototypes();
+    std::shared_ptr<SymbolTable> symbolTable();
+
 private:
     Token& getNextToken();
     OperatorType getNextBinOperator();
@@ -43,11 +49,15 @@ private:
     std::unique_ptr<ExprAST> MergeExpr(std::unique_ptr<ExprAST>, std::unique_ptr<ExprAST>, OperatorType);
     std::vector<std::unique_ptr<ExprAST>> ParseExprList(TokenType endToken);
     VarType ParseType();
+    Function generateFunction_new(const VarType& t);
+    bool isPostOperator();
 
     Lexer lexer_;
     Token cur_token_;
+    std::vector<std::unique_ptr<PrototypeAST>> proto_;
     std::vector<std::unique_ptr<FunctionAST>> expr_;
     std::vector<std::unique_ptr<ClassAST>> class_;
     std::shared_ptr<SymbolTable> symbol_;
-    VarType cur_type_;
+    std::vector<std::string> cur_namespace_;
+    VarType cur_class_;
 };

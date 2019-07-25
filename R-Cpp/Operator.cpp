@@ -1,6 +1,7 @@
 #include "Operator.h"
-#include <map>
 #include "CodeGenerator.h"
+#include <map>
+#include <iostream>
 
 OperatorType TokenToBinOperator(TokenType t) {
     switch (t) {
@@ -195,13 +196,13 @@ llvm::Value* builtinTypeOperator_i32(llvm::Value* LHS, llvm::Value* RHS, Operato
     case OperatorType::RightShift:
         return builder.CreateAShr(LHS, RHS);
     case OperatorType::Less:
-        return builder.CreateICmpULT(LHS, RHS);
+        return builder.CreateICmpSLT(LHS, RHS);
     case OperatorType::LessEqual:
-        return builder.CreateICmpULE(LHS, RHS);
+        return builder.CreateICmpSLE(LHS, RHS);
     case OperatorType::Greater:
-        return builder.CreateICmpUGE(LHS, RHS);
+        return builder.CreateICmpSGE(LHS, RHS);
     case OperatorType::GreaterEqual:
-        return builder.CreateICmpUGE(LHS, RHS);
+        return builder.CreateICmpSGE(LHS, RHS);
     case OperatorType::Equal:
         return builder.CreateICmpEQ(LHS, RHS);
     case OperatorType::NotEqual:

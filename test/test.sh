@@ -1,5 +1,6 @@
-cmake --build .. &&\
-cp ./../R-Cpp/R-Cpp . &&\
-./R-Cpp src.rpp &&\
-clang++ driver.cpp output.o -lgtest -lpthread -o out &&\
+cmake .. &&
+make &&
+cp R-Cpp/R-Cpp ./compiler &&
+./compiler src.rpp &&
+clang++ driver.cpp output.o -lgtest -lpthread -o out &&
 ./out 

@@ -52,6 +52,7 @@ fn classMemberFunction(i32 a)->i32
     return v.func();
 }
 
+//Array.basic
 fn array(i32 a)->i32
 {
     Arr<i32,10> array;
@@ -63,4 +64,23 @@ fn array(i32 a)->i32
         sum += array[j];
     }
     return sum;
+}
+
+//Pointer.basic
+fn malloc(i32 a) -> __ptr<void>;
+fn print(i32 a) -> i32;
+
+class test{
+    i32 a;
+    i32 b;
+    fn add()->i32{
+        return a+b;
+    }
+}
+
+fn ptr(i32 a,i32 b)->i32{
+    __ptr<test> p = test::new();
+    p->a=a;
+    p->b=b;
+    return p->add();
 }

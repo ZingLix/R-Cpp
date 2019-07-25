@@ -1,28 +1,38 @@
 #include "SymbolTable.h"
 #include "CodeGenerator.h"
 
-SymbolTable::SymbolTable()
+SymbolTable::SymbolTable():helper_("",nullptr),cur_namespace_(&helper_)
 {
-    createNewScope();
+    createScope();
 }
 
-void SymbolTable::createNewScope()
+void SymbolTable::createScope()
 {
-    NamedValues.emplace_back();
-    NamedFunctions.emplace_back();
-    NamedClass.emplace_back();
+    named_values_.emplace_back();
 }
 
 void SymbolTable::destroyScope()
 {
-    NamedClass.pop_back();
-    NamedFunctions.pop_back();
-    NamedValues.pop_back();
+    named_values_.pop_back();
 }
+
+void SymbolTable::createNamespace(const std::string& name)
+{
+    helper_.createNewNS(name);
+    ns_hierarchy_.push_back(name);
+    cur_namespace_ = helper_.nextNS[name].get();
+}
+
+void SymbolTable::destroyNamespace()
+{
+    ns_hierarchy_.pop_back();
+    cur_namespace_ = cur_namespace_->lastNS;
+}
+
 
 Variable SymbolTable::getValue(const std::string& name)
 {
-    for (auto it = NamedValues.rbegin(); it != NamedValues.rend(); ++it)
+    for (auto it = named_values_.rbegin(); it != named_values_.rend(); ++it)
     {
         auto t = it->find(name);
         if (t != it->end()) return t->second;
@@ -32,65 +42,68 @@ Variable SymbolTable::getValue(const std::string& name)
 
 void SymbolTable::setValue(const std::string& name, Variable val)
 {
-    NamedValues.back()[name] = val;
+    named_values_.back()[name] = val;
 }
 
 void SymbolTable::addFunction(const std::string& name, ::Function func)
 {
-    NamedFunctions.back()[name] = func;
+    mangled_function_map_[name] = func;
 }
 
-::Function SymbolTable::getFunction(const std::string& name)
+Function SymbolTable::getMangledFunction(const std::string& name)
 {
-    for (auto it = NamedFunctions.rbegin(); it != NamedFunctions.rend(); ++it)
-    {
-        auto t = it->find(name);
-        if (t != it->end()) return t->second;
-    }
+    auto t = mangled_function_map_.find(name);
+    if (t != mangled_function_map_.end()) return t->second;
     return ::Function();
 }
 
 bool SymbolTable::hasType(const VarType& t) {
     if(!is_builtin_type(t.typeName))
-    {
-        return getClass(t).type.typeName !="";
-    }
+        return getClass(t).type.typeName != "";
     return true;
 }
 
 void SymbolTable::addClass(const VarType& name, Class c)
 {
-    NamedClass.back()[name] = c;
+    c.type.namespaceHierarchy = ns_hierarchy_;
+    cur_namespace_->namedClass[name] = std::move(c);
 }
 
-Class SymbolTable::getClass(const VarType& type)
+Class SymbolTable::getClass(const VarType& t)
 {
-    for(auto it=NamedClass.rbegin();it!=NamedClass.rend();++it)
+    NamespaceHelper* ns = cur_namespace_;
+    while (ns!=nullptr)
     {
-        auto t = it->find(type.typeName);
-        if (t != it->end()) return t->second;
+        auto it = ns->namedClass.find(t);
+        if (it != ns->namedClass.end()) return it->second;
+        ns = ns->lastNS;
     }
-    return Class();
+    return {};
 }
 
 
-llvm::Type* SymbolTable::getType(const VarType& type)
+llvm::Type* SymbolTable::getLLVMType(const VarType& type)
 {
     if (is_builtin_type(type.typeName)) return nullptr;
     return getClass(type.typeName).type_llvm;
 }
 
-void SymbolTable::setType(const VarType& type, llvm::Type* tp)
+void SymbolTable::setLLVMType(const VarType& t, llvm::Type* tp)
 {
-    for (auto it = NamedClass.rbegin(); it != NamedClass.rend(); ++it) {
-        auto t = it->find(type.typeName);
-        if (t != it->end()) (t->second).type_llvm=tp;
+    NamespaceHelper* ns = &helper_;
+    for (auto& n : t.namespaceHierarchy) {
+        auto it = ns->nextNS.find(n);
+        if (it == ns->nextNS.end()) return;
+        ns = it->second.get();
     }
+    auto it = ns->namedClass.find(t);
+    if (it == ns->namedClass.end()) return;
+    it->second.type_llvm=tp;
 }
 
-VarType SymbolTable::getClassMemberType(const VarType& className, const std::string& memberName)
+VarType SymbolTable::getClassMemberType(const VarType& classType, const std::string& memberName)
 {
-    auto c = getClass(className);
+    auto c = getClass(classType);
     for(auto& v:c.memberVariables)
     {
         if (v.name == memberName) return v.type;
@@ -110,10 +123,32 @@ int SymbolTable::getClassMemberIndex(const VarType& className, const std::string
 
 void SymbolTable::addRawFunction(const ::Function& func)
 {
-    FunctionOverloadList[func.name].push_back(func);
+    cur_namespace_->namedFunction[func.name].push_back(func);
 }
 
-std::vector<::Function>& SymbolTable::getRawFunction(const std::string& name)
+const std::vector<Function>* SymbolTable::getRawFunction(const std::string& name, const std::vector<std::string>& ns_hierarchy)
 {
-    return FunctionOverloadList[name];
+    auto cur = cur_namespace_;
+    while (cur!=nullptr)
+    {
+        auto flist = getRawFunction_(name, ns_hierarchy, cur);
+        if (flist->size() != 0) return flist;
+        cur = cur->lastNS;
+    }
+    return nullptr;
+}
+
+const std::vector<std::string>& SymbolTable::getNamespaceHierachy()
+{
+    return ns_hierarchy_;
+}
+
+const std::vector<Function>* SymbolTable::getRawFunction_(const std::string& name, const std::vector<std::string>& ns_hier,NamespaceHelper* ns)
+{
+    for(size_t i=0;i<ns_hier.size();++i)
+    {
+        ns = ns->nextNS[ns_hier[i]].get();
+        if (ns == nullptr) return {};
+    }
+    return &(ns->namedFunction[name]);
 }

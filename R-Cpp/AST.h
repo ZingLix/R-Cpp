@@ -201,28 +201,25 @@ public:
 
 class FunctionAST
 {
-    std::unique_ptr<PrototypeAST> Proto;
+    //::Function Proto;
+    std::string functionName;
     std::unique_ptr<BlockExprAST> Body;
    // std::vector<std::unique_ptr<ExprAST>> Body;
     
 public:
-    FunctionAST(std::unique_ptr<PrototypeAST> Proto,
+    FunctionAST(const std::string& name,
         std::unique_ptr<BlockExprAST> Body)
-        : Proto(std::move(Proto)), Body(std::move(Body)) {
+        : functionName(name), Body(std::move(Body)) {
     }
     ~FunctionAST() {}
     llvm::Function* generateCode(CodeGenerator& cg);
-    std::string getName() { return Proto->getName(); }
-    void setClassType(const VarType& className) { Proto->setClassType(className); }
-    VarType getClassType() { return Proto->getClassType();}
-    std::vector<Variable>& Arg() {
-        return Proto->Arg();
-    }
+    //std::string getName() { return Proto.name; }
+    //VarType getClassType() { return Proto.classType;}
     auto& insturctions()
     {
         return Body->instructions();
     }
-    ::Function getFunction() { return Proto->getFunction(); }
+    //::Function getFunction() { return Proto; }
 };
 
 class ClassAST
@@ -237,6 +234,7 @@ public:
     }
 
     llvm::StructType* generateCode(CodeGenerator& cg);
+    llvm::Value* generateFunction_new(CodeGenerator& cg);
 };
 
 class MemberAccessAST:public ExprAST,public AllocAST
@@ -265,5 +263,13 @@ public:
         :ExprAST(type),expr(std::move(var)), op(Op), args()
     { }
     llvm::Value* generateCode(CodeGenerator& cg) override;
+};
 
+class NamespaceExprAST:public ExprAST
+{
+    std::string name_;
+public:
+    NamespaceExprAST(std::string name):ExprAST(VarType("null")),name_(name){}
+    llvm::Value* generateCode(CodeGenerator& cg) override;
+    std::string getName() { return name_; }
 };

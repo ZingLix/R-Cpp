@@ -1,6 +1,5 @@
 #pragma once
 #include "Token.h"
-#include <functional>
 #include <llvm/IR/Value.h>
 
 class CodeGenerator;

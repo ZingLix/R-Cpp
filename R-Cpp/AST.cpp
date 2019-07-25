@@ -1,6 +1,11 @@
 #include "AST.h"
 #include "CodeGenerator.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Type.h"
+#include "llvm/IR/Verifier.h"
 #include <iostream>
 using namespace llvm;
 
@@ -24,8 +29,7 @@ AllocaInst* CreateEntryBlockAlloca(llvm::Function* TheFunction, Type* Type,
 
 AllocaInst* CreateEntryBlockAlloca(llvm::Function* TheFunction,const std::string& TypeName,
     const std::string& VarName,CodeGenerator& cg) {
-    auto type = cg.symbol().getType(TypeName);
-    if (!type) type = get_builtin_type(TypeName, cg);
+    auto type = get_type(TypeName,cg);
     return CreateEntryBlockAlloca(TheFunction, type, VarName, cg);
 }
 
@@ -84,6 +88,12 @@ llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
         auto type = PointerType::get(elementType, 0);
         auto alloc = cg.builder().CreateAlloca(type);
         cg.symbol().setValue(varname_, Variable(varname_, type_, alloc));
+        if(init_value_)
+        {
+            auto InitVal = init_value_->generateCode(cg);
+            if (!InitVal) return nullptr;
+            cg.builder().CreateStore(InitVal, alloc);
+        }
     }
     else
     {
@@ -157,7 +167,7 @@ Value* ReturnAST::generateCode(CodeGenerator& cg) {
 }
 
 llvm::Value* ForExprAST::generateCode(CodeGenerator& cg) {
-    ScopeGuard sg(cg.symbol());
+    SymbolTable::ScopeGuard sg(cg.symbol());
     auto startval = Start->generateCode(cg);
     if (!startval) return nullptr;
     auto F = cg.builder().GetInsertBlock()->getParent();
@@ -207,7 +217,7 @@ std::vector<std::unique_ptr<ExprAST>>& BlockExprAST::instructions()
 }
 
 llvm::Value* IfExprAST::generateCode(CodeGenerator& cg) {
-    ScopeGuard sg(cg.symbol());
+    SymbolTable::ScopeGuard sg(cg.symbol());
     auto cond = Cond->generateCode(cg);
     if (!cond) return nullptr;
     auto& builder = cg.builder();
@@ -266,14 +276,16 @@ llvm::Value* CallExprAST::generateCode(CodeGenerator& cg) {
         Argv.push_back(Args[i]->generateCode(cg));
         if(!Argv.back()) return nullptr;
     }
-    return cg.builder().CreateCall(CalleeF, Argv, "calltmp");
+    return cg.builder().CreateCall(CalleeF, Argv);
 }
 
 llvm::Function* PrototypeAST::generateCode(CodeGenerator& cg) {
     F.name = ::Function::mangle(F);
+    auto p = cg.getFunction(F.name);
+    if (p) return p;
     std::vector<llvm::Type*> ArgT;
     if (F.classType.typeName != "") 
-        ArgT.push_back(PointerType::getUnqual(cg.symbol().getType(F.classType)));
+        ArgT.push_back(PointerType::getUnqual(cg.symbol().getLLVMType(F.classType)));
     for(auto& t:F.args) {
         auto type = get_type(t.type,cg);
        // if (!type) type = get_builtin_type(t.type,cg);
@@ -291,36 +303,36 @@ llvm::Function* PrototypeAST::generateCode(CodeGenerator& cg) {
     }
     if(F.classType.typeName!="")
     {
-        std::vector<Variable> newArg;
-        newArg.push_back(Variable("this", F.classType));
-        newArg.insert(newArg.end(), F.args.begin(), F.args.end());
-        F.args = std::move(newArg);
+        F.args.insert(F.args.begin(), Variable("this", F.classType));
     }
+    F.alloc = Func;
     cg.symbol().addFunction(F.name, F);
     return Func;
 }
 
 llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
-    auto F = cg.getFunction(Proto->getName());
-    if (!F) F = Proto->generateCode(cg);
-    if (!F) return nullptr;
-    if (!F->empty()) return LogErrorF("Cannot redefine function.");
+    auto F = cg.getFunction(functionName);
+    auto Func = cg.symbol().getMangledFunction(functionName);
+    if (!F) LogError("No function named " + functionName+".");
+    //if (!F) F = Proto->generateCode(cg);
+    //if (!F) return nullptr;
+    //if (!F->empty()) return LogErrorF("Cannot redefine function.");
     if (!Body) return F;
     BasicBlock* BB = BasicBlock::Create(cg.context(), "entry", F);
-    ScopeGuard sg(cg.symbol());
+    SymbolTable::ScopeGuard sg(cg.symbol());
     cg.builder().SetInsertPoint(BB);
     int i = 0;
     for(auto& Arg:F->args()) {
         auto alloca = CreateEntryBlockAlloca(F,Arg.getType(), Arg.getName(), cg);
         cg.builder().CreateStore(&Arg, alloca);
-        cg.symbol().setValue(Proto->Arg()[i].name, 
-            Variable(Proto->Arg()[i].name, Proto->Arg()[i].type,alloca));
+        cg.symbol().setValue(Func.args[i].name, 
+            Variable(Func.args[i].name, Func.args[i].type,alloca));
         i++;
     }
     bool hasReturn = false;
-    if(getClassType().typeName!="")
+    if(Func.classType.typeName!="")
     {
-        auto c = cg.symbol().getClass(getClassType());
+        auto c = cg.symbol().getClass(Func.classType);
         int i = 0;
         for(auto& v:c.memberVariables)
         {
@@ -354,10 +366,10 @@ llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
     // }
     //
     if (!hasReturn) cg.builder().CreateRet(nullptr);
-    if(verifyFunction(*F,&errs())) {
+    if(llvm::verifyFunction(*F,&errs())) {
         std::cout<<std::endl << "something bad happened ...\n";
     }
-    //cg.FPM()->run(*F);
+    cg.FPM()->run(*F);
     return F;
 }
 
@@ -375,13 +387,41 @@ llvm::StructType* ClassAST::generateCode(CodeGenerator& cg)
         //else members.push_back(t);
     }
     type->setBody(members);
-    cg.symbol().setType(c.type,type);
+    cg.symbol().setLLVMType(c.type,type);
     //for(auto fn:c.memberFunctions)
     //{
     //    cg.symbol().getFunction(fn.name)
     //}
+   // generateFunction_new(cg);
     return type;
 }
+
+llvm::Value* ClassAST::generateFunction_new(CodeGenerator& cg)
+{
+    ::Function f;
+    f.name = "new";
+    f.classType = c.type;
+    VarType retType("__ptr");
+    retType.templateArgs.push_back(VarType(c.type.typeName));
+    f.name = ::Function::mangle(f);
+    auto FT = FunctionType::get(get_type(retType, cg), std::vector<Type*>(), false);
+    auto Func = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, f.name, cg.getModule());
+    f.alloc = Func;
+    cg.symbol().addFunction(::Function::mangle(f), f);
+    BasicBlock* BB = BasicBlock::Create(cg.context(), "entry", Func);
+    cg.builder().SetInsertPoint(BB);
+    std::vector<Value*> index;
+    index.push_back(ConstantInt::get(cg.context(), APInt(32, 1)));
+    auto size = cg.builder().CreateGEP(Constant::getNullValue(PointerType::get(get_type(c.type, cg), 0)), index);
+    size = cg.builder().CreateCast(llvm::Instruction::CastOps::PtrToInt, size, get_builtin_type("i32", cg));
+    std::vector<Value*> args;
+    args.push_back(size);
+    auto retVal = cg.builder().CreateCall(cg.getFunction("_R6mallocI3i32"), args);
+    cg.builder().CreateRet(retVal);
+    cg.FPM()->run(*Func);
+    return Func;
+}
+
 
 MemberAccessAST::MemberAccessAST(std::unique_ptr<ExprAST> Var, std::string Member, OperatorType Op,
                                  const VarType& retType): ExprAST(retType), var(std::move(Var)),
@@ -456,7 +496,16 @@ llvm::Value* UnaryExprAST::generateCode(CodeGenerator& cg)
     }else if(op==OperatorType::BitwiseNOT)
     {
         return cg.builder().CreateNot(var);
+    }else if(op==OperatorType::Dereference)
+    {
+        alloca_ = static_cast<AllocaInst*>(var);
+        return cg.builder().CreateLoad(var);
     }
     LogError("Unknown unary operator.");
+    return nullptr;
+}
+
+llvm::Value* NamespaceExprAST::generateCode(CodeGenerator& cg) {
+    LogError("Namespace cannot generate code.");
     return nullptr;
 }

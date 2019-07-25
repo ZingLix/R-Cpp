@@ -6,6 +6,14 @@ extern "C"{
     int _R10precedence();
     int _R19classMemberFunctionI3i32(int);
     int _R5arrayI3i32(int);
+    int _R5printI3i32(int a){
+        printf("%d",a);
+        return 0;
+    }
+    void* _R6mallocI3i32(int size){
+        return malloc(size);
+    }
+    int _R3ptrI3i32I3i32(int,int);
 }
 
 int fibonacci(int i){
@@ -26,6 +34,10 @@ int classMemberFunction(int i){
 
 int array(int i){
     return _R5arrayI3i32(i);
+}
+
+int ptr(int a,int b){
+    return _R3ptrI3i32I3i32(a,b);
 }
 
 int Fibonacci(int i){
@@ -79,6 +91,12 @@ TEST(ARRAY, basic){
     for(int i=2;i<10;++i){
         EXPECT_EQ(array(i),Array(i));
     }
+}
+
+TEST(POINTER, basic){
+    EXPECT_EQ(ptr(33,55),33+55);
+    EXPECT_EQ(ptr(82,255),82+255);
+    EXPECT_EQ(ptr(68,3),68+3);
 }
 
 int main(int ac, char* av[])

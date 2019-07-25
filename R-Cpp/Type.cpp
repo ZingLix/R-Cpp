@@ -49,6 +49,7 @@ llvm::Type* get_builtin_type(const std::string& s, CodeGenerator& cg) {
     if (s == "bool") return llvm::Type::getInt1Ty(cg.context());
     if (s == "float") return llvm::Type::getFloatTy(cg.context());
     if (s == "double") return llvm::Type::getDoubleTy(cg.context());
+    if (s == "void") return llvm::Type::getVoidTy(cg.context());
     return nullptr;
 }
 
@@ -68,6 +69,7 @@ bool is_builtin_type(llvm::Type::TypeID type) {
     case llvm::Type::TypeID::FloatTyID:
     case llvm::Type::TypeID::DoubleTyID:
     case llvm::Type::TypeID::IntegerTyID:
+    case llvm::Type::TypeID::VoidTyID:
         return true;
     default:
         return false;
@@ -77,12 +79,13 @@ bool is_builtin_type(llvm::Type::TypeID type) {
 bool is_builtin_type(const std::string& s) {
     return (s == "i32" || s == "i64" || s == "u32" ||
         s == "u64" || s == "bool" || s == "float" ||
-        s == "double" || s == "Arr");
+        s == "double" || s == "Arr"||s=="void"||s=="__ptr");
 }
 
 llvm::Type* get_type(VarType t, CodeGenerator& cg)
 {
-    auto type=  cg.symbol().getType(t);
+    if (t.typeName == "__ptr") return llvm::PointerType::get(get_type(t.templateArgs[0],cg),0);
+    auto type=  cg.symbol().getLLVMType(t);
     if (!type) type = get_builtin_type(t.typeName, cg);
     return type;
 }

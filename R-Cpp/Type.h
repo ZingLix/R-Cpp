@@ -5,6 +5,7 @@
 #include <llvm/IR/Instructions.h>
 
 class CodeGenerator;
+class PrototypeAST;
 
 struct VarType
 {
@@ -19,6 +20,7 @@ struct VarType
 
     std::string typeName;
     std::vector<VarType> templateArgs;
+    std::vector<std::string> namespaceHierarchy;
     bool isConst;
 };
 

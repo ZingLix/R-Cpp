@@ -30,54 +30,9 @@ std::unique_ptr<ExprAST> Parser::ParseStatement() {
 std::unique_ptr<ExprAST> Parser::ParsePrimary() {
     if (cur_token_.type == TokenType::Identifier) {
         auto e = ParseIdentifierExpr();
-        while (cur_token_.type == TokenType::lSquare ||
-            cur_token_.type == TokenType::lParenthesis ||
-            cur_token_.type == TokenType::Point||
-            cur_token_.type==TokenType::Plus||
-            cur_token_.type==TokenType::Minus) 
+        while (isPostOperator()) 
         {
-            auto type = e->getType();
-            if (cur_token_.type == TokenType::lSquare) 
-            {
-                if(type.typeName!="Arr")
-                {
-                    error("No suitable [] operator for " + type.typeName + ".");
-                    return nullptr;
-                }
-                e = std::make_unique<UnaryExprAST>(std::move(e), 
-                    OperatorType::Subscript, ParseSquareExprList(),type.templateArgs[0]);
-            } else if (cur_token_.type == TokenType::lParenthesis) 
-            {
-
-              //  e = std::make_unique<UnaryExprAST>(std::move(e), 
-              //      OperatorType::FunctionCall, ParseParenExprList());
-            } else if (cur_token_.type == TokenType::Point) 
-            {
-                getNextToken();
-                e = ParseMemberAccess(std::move(e), 
-                    OperatorType::MemberAccessP);
-            }else if(cur_token_.type==TokenType::Plus)
-            {
-                if(lexer_.nextChar()=='+')
-                {  
-                    assert(getNextUnaryOperator() == OperatorType::PreIncrement);
-                    e = std::make_unique<UnaryExprAST>(std::move(e), OperatorType::PostIncrement,e->getType());
-                }else
-                {
-                    break;
-                }
-            }else if(cur_token_.type==TokenType::Minus)
-            {
-                auto c = lexer_.nextChar();
-                if(lexer_.nextChar()=='-')
-                {
-                    assert(getNextUnaryOperator() == OperatorType::PreDecrement);
-                    e= std::make_unique<UnaryExprAST>(std::move(e), OperatorType::PostDecrement, e->getType());
-                }else
-                {
-                    break;
-                }
-            }
+            e = ParsePostOperator(std::move(e));
         }
         return e;
     }
@@ -100,6 +55,75 @@ std::unique_ptr<ExprAST> Parser::ParsePrimary() {
     return nullptr;
 }
 
+bool Parser::isPostOperator()
+{
+    if (cur_token_.type == TokenType::lSquare) {
+        return true;
+    } else if (cur_token_.type == TokenType::lParenthesis) {
+        return true;
+    } else if (cur_token_.type == TokenType::Point) {
+        return true;
+    } else if (cur_token_.type == TokenType::Plus) {
+        return  lexer_.nextChar() == '+';
+    } else if (cur_token_.type == TokenType::Minus) {
+        return  lexer_.nextChar() == '-'||lexer_.nextChar()=='>';
+    } else if(cur_token_.type==TokenType::Colon)
+    {
+        return true;
+    }
+    return false;
+}
+
+std::unique_ptr<ExprAST> Parser::ParsePostOperator(std::unique_ptr<ExprAST> e)
+{
+    auto type = e->getType();
+    if (cur_token_.type == TokenType::lSquare) {
+        if (type.typeName != "Arr") {
+            error("No suitable [] operator for " + type.typeName + ".");
+            return nullptr;
+        }
+        e = std::make_unique<UnaryExprAST>(std::move(e),
+            OperatorType::Subscript, ParseSquareExprList(), type.templateArgs[0]);
+    } else if (cur_token_.type == TokenType::lParenthesis) {
+
+        //  e = std::make_unique<UnaryExprAST>(std::move(e), 
+        //      OperatorType::FunctionCall, ParseParenExprList());
+    } else if (cur_token_.type == TokenType::Point) {
+        getNextToken();
+        e = ParseMemberAccess(std::move(e),
+            OperatorType::MemberAccessP);
+    } else if (cur_token_.type == TokenType::Plus) {
+        assert(getNextUnaryOperator() == OperatorType::PreIncrement);
+        e = std::make_unique<UnaryExprAST>(std::move(e), OperatorType::PostIncrement, e->getType());
+    } else if (cur_token_.type == TokenType::Minus) {
+        if(lexer_.nextChar()=='>')
+        {
+            assert(e->getType().typeName == "__ptr");
+            e = std::make_unique<UnaryExprAST>(std::move(e), OperatorType::Dereference, e->getType().templateArgs[0]);
+            assert(getNextBinOperator() == OperatorType::MemberAccessA);
+            e = ParseMemberAccess(std::move(e), OperatorType::MemberAccessP);
+        }else
+        {
+            assert(getNextUnaryOperator() == OperatorType::PreDecrement);
+            e = std::make_unique<UnaryExprAST>(std::move(e), OperatorType::PostDecrement, e->getType());
+        }
+
+    } else if(cur_token_.type==TokenType::Colon)
+    {
+        assert(getNextBinOperator() == OperatorType::ScopeResolution);
+        auto p = dynamic_cast<NamespaceExprAST*>(e.get());
+        if(p==nullptr)
+        {
+            error("Left side of :: is not a namespace identifier.");
+            return nullptr;
+        }
+        cur_namespace_.push_back(p->getName());
+        e = ParsePrimary();
+        cur_namespace_.clear();
+    }
+    return e;
+}
+
 std::unique_ptr<ExprAST> Parser::ParseParenExpr() {
     // ( expression )
     getNextToken(); //eat (
@@ -120,6 +144,10 @@ std::unique_ptr<ExprAST> Parser::ParseIdentifierExpr() {
  //   if (cur_token_.type_llvm == TokenType::Identifier||cur_token_.type_llvm==TokenType::lAngle) {
     if(symbol_->hasType(idname)&&(cur_token_.type == TokenType::Identifier || cur_token_.type == TokenType::lAngle)){
         return ParseVaribleDefinition(idname);
+    }
+    if(cur_token_.type==TokenType::Colon)
+    {
+        return std::make_unique<NamespaceExprAST>(idname);
     }
     // is only a identifier
     if (cur_token_.type != TokenType::lParenthesis) {
@@ -151,9 +179,9 @@ std::unique_ptr<ExprAST> Parser::ParseIdentifierExpr() {
         }
     }
     getNextToken();
-    auto& fnList = symbol_->getRawFunction(idname);
+    auto fnList = symbol_->getRawFunction(idname,cur_namespace_);
     Function target;
-    for(auto&f:fnList)
+    for(auto&f:*fnList)
     {
         bool flag = true;
         if(f.args.size()==args.size())
@@ -180,7 +208,7 @@ std::unique_ptr<ExprAST> Parser::ParseIdentifierExpr() {
 }
 
 std::unique_ptr<ExprAST> Parser::ParseForExpr() {
-    ScopeGuard sg(*symbol_);
+    SymbolTable::ScopeGuard sg(*symbol_);
     getNextToken(); //eat for
     if(cur_token_.type!=TokenType::lParenthesis) {
         error("Expected ( after a for loop.");
@@ -252,7 +280,6 @@ std::unique_ptr<ExprAST> Parser::MergeExpr(std::unique_ptr<ExprAST> LHS, std::un
     error("Unexpected operator.");
     return nullptr;
 }
-
 
 std::unique_ptr<ExprAST> Parser::ParseExpression() {
     auto LHS = ParsePrimary();
@@ -452,7 +479,6 @@ OperatorType Parser::getNextUnaryOperator()
     return OperatorType::None;
 }
 
-
 std::unique_ptr<ExprAST> Parser::ParseIfExpr() {
     getNextToken();  // eat if
     auto cond = ParseParenExpr();
@@ -532,7 +558,10 @@ std::unique_ptr<PrototypeAST> Parser::ParsePrototype() {
         error("Return value must be pointed out explicitly when declaring a function prototype.");
         return nullptr;
     }
-    return std::make_unique<PrototypeAST>(Function(FnName, ArgNames,retType));
+    auto p = std::make_unique<PrototypeAST>(Function(FnName, ArgNames, retType));
+    if (cur_class_.typeName != "") 
+        p->setClassType(cur_class_);
+    return p;
 }
 
 std::unique_ptr<BlockExprAST> Parser::ParseBlock() {
@@ -570,15 +599,18 @@ std::unique_ptr<FunctionAST> Parser::ParseFunction() {
     auto Proto = ParsePrototype();
     if (!Proto) return nullptr;
     symbol_->addRawFunction(Proto->getFunction());
-    ScopeGuard sg(*symbol_);
-    for(auto it:Proto->Arg())
+    auto f = Proto->getFunction();
+    auto name = ::Function::mangle(f);
+    proto_.emplace_back(std::move(Proto));
+    SymbolTable::ScopeGuard sg(*symbol_);
+    for(auto it:f.args)
     {
         symbol_->setValue(it.name, Variable(it.name, it.type));
     }
     if(cur_token_.type==TokenType::Semicolon)
     {
         getNextToken();
-        return std::make_unique<FunctionAST>(std::move(Proto), nullptr);
+        return std::make_unique<FunctionAST>(name, nullptr);
     }
     if (cur_token_.type != TokenType::lBrace) {
         error("Expected { or ;.");
@@ -588,7 +620,7 @@ std::unique_ptr<FunctionAST> Parser::ParseFunction() {
     if (!body) {
         return nullptr;
     }
-    return std::make_unique<FunctionAST>(std::move(Proto), std::move(body));
+    return std::make_unique<FunctionAST>(name, std::move(body));
 }
 
 void Parser::HandleDefinition() {
@@ -616,9 +648,13 @@ std::unique_ptr<ClassAST> Parser::ParseClass()
         error("Expect class body.");
         return nullptr;
     }
+
     getNextToken(); // eat ;
     {
-        ScopeGuard(*symbol_);
+        SymbolTable::ScopeGuard guard(*symbol_);
+        SymbolTable::NamespaceGuard ns(*symbol_,className);
+        auto tmp = cur_class_;
+        cur_class_ = c.type;
         while (cur_token_.type != TokenType::rBrace) {
             if (cur_token_.type == TokenType::Identifier) {
                 auto type = cur_token_.content;
@@ -629,18 +665,19 @@ std::unique_ptr<ClassAST> Parser::ParseClass()
                     error("Unknown error.");
                     return nullptr;
                 }
+                symbol_->getClass(c.type);
                 c.memberVariables.emplace_back(var->getVarName(), var->getVarType());
             } else if (cur_token_.type == TokenType::Function) {
                 auto fn = ParseFunction();
-                Function f(fn->getFunction());
-                f.classType = c.type;
+                Function f(proto_.back()->getFunction());
                 c.memberFunctions.push_back(f);
-                fn->setClassType(c.type);
                 expr_.push_back(std::move(fn));
                 //symbol_->addFunction(f.name, f);
             }
             if (cur_token_.type == TokenType::Semicolon) getNextToken();
         }
+        symbol_->addRawFunction(generateFunction_new(c.type));
+        cur_class_ = tmp;
     }
     symbol_->addClass(className, c);
     return std::make_unique<ClassAST>(c);
@@ -658,7 +695,6 @@ void Parser::HandleClass()
         getNextToken();
     }
 }
-
 
 void Parser::MainLoop() {
     while (1) {
@@ -699,6 +735,11 @@ void Parser::error(const std::string& errmsg)
 std::vector<std::unique_ptr<ClassAST>>& Parser::Classes()
 {
     return class_;
+}
+
+std::vector<std::unique_ptr<PrototypeAST>>& Parser::Prototypes()
+{
+    return proto_;
 }
 
 std::vector<std::unique_ptr<ExprAST>> Parser::ParseExprList(TokenType endToken)
@@ -821,4 +862,20 @@ std::unique_ptr<ExprAST> Parser::ParseMemberAccess(std::unique_ptr<ExprAST> lhs,
         }
         return std::make_unique<MemberAccessAST>(std::move(lhs), name, Op, retType);
     }
+}
+
+Function Parser::generateFunction_new(const VarType& t)
+{
+    Function f;
+    f.name = "new";
+    f.classType = t;
+    VarType retType("__ptr");
+    retType.templateArgs.push_back(t);
+    f.returnType = retType;
+    return f;
+}
+
+std::shared_ptr<SymbolTable> Parser::symbolTable()
+{
+    return symbol_;
 }
