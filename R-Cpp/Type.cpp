@@ -94,6 +94,7 @@ std::string Function::mangle(const Function& F)
 {
     if (F.name == "main") return "main";
     if (F.name == "_start") return "_start";
+    if (F.isExternal) return F.name;
     std::string mangledName = "_";
     mangledName += F.isExternal ? "Z" : "R";
     if (F.classType.typeName != "") mangledName += mangle(F.classType);

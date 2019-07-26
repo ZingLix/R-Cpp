@@ -25,4 +25,11 @@ What's new
 
 - Compile-time Reflection
 
+## Installation
 
+CMake and [LLVM-8](http://releases.llvm.org/download.html#8.0.0) are required. 
+
+```
+cmake .
+make
+```

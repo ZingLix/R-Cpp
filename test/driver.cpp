@@ -6,13 +6,6 @@ extern "C"{
     int _R10precedence();
     int _R19classMemberFunctionI3i32(int);
     int _R5arrayI3i32(int);
-    int _R5printI3i32(int a){
-        printf("%d",a);
-        return 0;
-    }
-    void* _R6mallocI3i32(int size){
-        return malloc(size);
-    }
     int _R3ptrI3i32I3i32(int,int);
 }
 

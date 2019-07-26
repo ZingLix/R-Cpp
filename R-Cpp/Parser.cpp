@@ -558,7 +558,7 @@ std::unique_ptr<PrototypeAST> Parser::ParsePrototype() {
         error("Return value must be pointed out explicitly when declaring a function prototype.");
         return nullptr;
     }
-    auto p = std::make_unique<PrototypeAST>(Function(FnName, ArgNames, retType));
+    auto p = std::make_unique<PrototypeAST>(Function(FnName, ArgNames, retType, isExternal));
     if (cur_class_.typeName != "") 
         p->setClassType(cur_class_);
     return p;
@@ -709,6 +709,12 @@ void Parser::MainLoop() {
             break;
         case TokenType::Class:
             HandleClass();
+            break;
+        case TokenType::External:
+            ParseExternal();
+            break;
+        case TokenType::Internal:
+            ParseInternal();
             break;
         default:
             getNextToken();
@@ -878,4 +884,20 @@ Function Parser::generateFunction_new(const VarType& t)
 std::shared_ptr<SymbolTable> Parser::symbolTable()
 {
     return symbol_;
+}
+
+void Parser::ParseExternal()
+{
+    isExternal = true;
+    getNextToken();
+    if (cur_token_.type != TokenType::Colon)
+        error("Expected : after external.");
+    getNextToken();
+}
+void Parser::ParseInternal() {
+    isExternal = false;
+    getNextToken();
+    if (cur_token_.type != TokenType::Colon)
+        error("Expected : after internal.");
+    getNextToken();
 }

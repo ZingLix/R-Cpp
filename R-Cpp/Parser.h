@@ -8,9 +8,11 @@ class SymbolTable;
 class Parser
 {
 public:
-    Parser(const std::string& filename):lexer_(filename),cur_token_(lexer_.nextToken()), symbol_(std::make_shared<SymbolTable>())
-
-    {}
+    Parser(const std::string& filename):lexer_(filename),
+    cur_token_(lexer_.nextToken()), 
+    symbol_(std::make_shared<SymbolTable>()),
+    isExternal(false)
+    { }
 
     std::unique_ptr<ExprAST> ParsePrimary();
     std::unique_ptr<ExprAST> ParseStatement();
@@ -41,6 +43,9 @@ public:
     std::vector<std::unique_ptr<PrototypeAST>>& Prototypes();
     std::shared_ptr<SymbolTable> symbolTable();
 
+    void ParseExternal();
+    void ParseInternal();
+
 private:
     Token& getNextToken();
     OperatorType getNextBinOperator();
@@ -60,4 +65,5 @@ private:
     std::shared_ptr<SymbolTable> symbol_;
     std::vector<std::string> cur_namespace_;
     VarType cur_class_;
+    bool isExternal;
 };

@@ -416,7 +416,7 @@ llvm::Value* ClassAST::generateFunction_new(CodeGenerator& cg)
     size = cg.builder().CreateCast(llvm::Instruction::CastOps::PtrToInt, size, get_builtin_type("i32", cg));
     std::vector<Value*> args;
     args.push_back(size);
-    auto retVal = cg.builder().CreateCall(cg.getFunction("_R6mallocI3i32"), args);
+    auto retVal = cg.builder().CreateCall(cg.getFunction("malloc"), args);
     cg.builder().CreateRet(retVal);
     cg.FPM()->run(*Func);
     return Func;

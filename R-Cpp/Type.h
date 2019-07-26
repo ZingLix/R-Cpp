@@ -40,8 +40,8 @@ struct Function
 {
     Function() :alloc(nullptr),isExternal(false) {}
     Function(const std::string& n, std::vector<Variable>& t,
-        const VarType& retType, llvm::Function* a=nullptr)
-        :name(n), args(t),returnType(retType), alloc(a),isExternal(false) {
+        const VarType& retType,bool external, llvm::Function* a=nullptr)
+        :name(n), args(t),returnType(retType), alloc(a),isExternal(external) {
     }
 
     static std::string mangle(const Function& F);

@@ -16,6 +16,8 @@ enum class TokenType
     Identifier,
     Integer,
     Float,
+    External,
+    Internal,
     lParenthesis = '(',
     rParenthesis = ')',
     lSquare = '[',
