@@ -1,7 +1,8 @@
 #include "Operator.h"
-#include "CodeGenerator.h"
+#include "../CodeGenerator/CodeGenerator.h"
 #include <map>
 #include <iostream>
+#include <llvm/IR/Constants.h>
 
 OperatorType TokenToBinOperator(TokenType t) {
     switch (t) {
@@ -138,7 +139,7 @@ bool isCompareOperator(OperatorType t)
 }
 
 
-llvm::Value* builtinTypeOperator_float(llvm::Value* LHS, llvm::Value* RHS, OperatorType op, CodeGenerator& cg) {
+llvm::Value* builtinTypeOperator_float(llvm::Value* LHS, llvm::Value* RHS, OperatorType op, CG::CodeGenerator& cg) {
     llvm::Value* tmp = nullptr;
     auto& builder = cg.builder();
     switch (op) {
@@ -168,7 +169,7 @@ llvm::Value* builtinTypeOperator_float(llvm::Value* LHS, llvm::Value* RHS, Opera
 
 }
 
-llvm::Value* builtinTypeOperator_i32(llvm::Value* LHS, llvm::Value* RHS, OperatorType op, CodeGenerator& cg) {
+llvm::Value* builtinTypeOperator_i32(llvm::Value* LHS, llvm::Value* RHS, OperatorType op, CG::CodeGenerator& cg) {
     auto& builder = cg.builder();
     if (llvm::isa<llvm::ConstantInt>(LHS)) {
         LHS = llvm::ConstantInt::get(LHS->getType(),
@@ -220,7 +221,7 @@ llvm::Value* builtinTypeOperator_i32(llvm::Value* LHS, llvm::Value* RHS, Operato
 
 llvm::Value* builtinTypeOperate(llvm::Value* LHS, const std::string& ltype,
     llvm::Value* RHS, const std::string& rtype, OperatorType op
-    , CodeGenerator& cg) {
+    , CG::CodeGenerator& cg) {
     if (ltype == "i32") {
         if (rtype == "i32") return builtinTypeOperator_i32(LHS, RHS, op, cg);
     }

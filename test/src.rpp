@@ -55,7 +55,7 @@ fn classMemberFunction(i32 a)->i32
 //Array.basic
 fn array(i32 a)->i32
 {
-    Arr<i32,10> array;
+    __arr<i32,10> array;
     for(i32 i=1;i<11;i=i+1){
         array[i-1]=a*i;
     }

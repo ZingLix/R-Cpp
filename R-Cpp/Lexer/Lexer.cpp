@@ -76,6 +76,8 @@ Token Lexer::nextIdentifier()
         return Token(TokenType::External);
     if (content == "internal")
         return Token(TokenType::Internal);
+    if (content == "using")
+        return Token(TokenType::Using);
     return Token(TokenType::Identifier, content);
 }
 

@@ -7,7 +7,10 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
 #include <iostream>
+#include "../Util/Constant.h"
+
 using namespace llvm;
+using namespace CG;
 
 Value* LogError(const std::string& msg) {
     std::cout << msg<<std::endl;
@@ -29,7 +32,7 @@ AllocaInst* CreateEntryBlockAlloca(llvm::Function* TheFunction, Type* Type,
 
 AllocaInst* CreateEntryBlockAlloca(llvm::Function* TheFunction,const std::string& TypeName,
     const std::string& VarName,CodeGenerator& cg) {
-    auto type = get_type(TypeName,cg);
+    auto type = cg.symbol().getType(TypeName);
     return CreateEntryBlockAlloca(TheFunction, type, VarName, cg);
 }
 
@@ -52,42 +55,42 @@ VariableExprAST::VariableExprAST(const std::string& n,const VarType& t)
 }
 
 llvm::Value* VariableExprAST::generateCode(CodeGenerator& cg) {
-    auto v = cg.symbol().getValue(name);
-    if (v.alloc == nullptr) {
+    auto alloc = cg.symbol().getAlloc(name);
+    if (alloc == nullptr) {
         std::cout << "Unknown variable name: "<<name<<"." << std::endl;
         return nullptr;
     }
-    alloca_ = v.alloc;
-    return cg.builder().CreateLoad(v.alloc);
+    alloca_ = alloc;
+    return cg.builder().CreateLoad(alloc);
 
 }
 
-VariableDefAST::VariableDefAST(const VarType& type, const std::string& var_name,
+VariableDefAST::VariableDefAST(const std::string& type, const std::string& var_name,
                              std::unique_ptr<ExprAST> init_value)
     :ExprAST(VarType("void")), type_(type), varname_(var_name),init_value_(std::move(init_value)) 
 {
 }
 
-VariableDefAST::VariableDefAST(const VarType& type, const std::string& var_name)
+VariableDefAST::VariableDefAST(const std::string& type, const std::string& var_name)
     :ExprAST(VarType("void")), type_(type),varname_(var_name),init_value_(std::move(nullptr)) 
 {
 }
 
 llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
-    if(type_.typeName=="Arr")
+    llvm::AllocaInst* alloc;
+    if(type_=="Arr")
     {
-        auto elementType = get_type(type_.templateArgs[0],cg);
-        auto size = std::stoi(type_.templateArgs[1].typeName);
+        auto elementType = cg.symbol().getType(templateArgs[0]);// get_type(type_.templateArgs[0], cg);
+        auto size = std::stoi(templateArgs[1]);
         //auto size = template_args_[1]->generateCode(cg);
         auto type = ArrayType::get(elementType, size);
-        auto alloc = cg.builder().CreateAlloca(type);
-        cg.symbol().setValue(varname_, Variable(varname_, type_, alloc));
-    }else if(type_.typeName=="__ptr")
+        alloc = cg.builder().CreateAlloca(type);
+    }
+    else if(type_=="__ptr")
     {
-        auto elementType = get_type(type_.templateArgs[0], cg);
+        auto elementType = cg.symbol().getType(templateArgs[0]);
         auto type = PointerType::get(elementType, 0);
-        auto alloc = cg.builder().CreateAlloca(type);
-        cg.symbol().setValue(varname_, Variable(varname_, type_, alloc));
+        alloc = cg.builder().CreateAlloca(type);
         if(init_value_)
         {
             auto InitVal = init_value_->generateCode(cg);
@@ -97,8 +100,8 @@ llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
     }
     else
     {
-        auto type = get_type(type_,cg);
-        auto alloc = cg.builder().CreateAlloca(type, nullptr, varname_);
+        auto type = cg.symbol().getType(type_);
+        alloc = cg.builder().CreateAlloca(type, nullptr, varname_);
        // auto F = cg.builder().GetInsertBlock()->getParent();
        // auto alloc = CreateEntryBlockAlloca(F, typename_, varname_, cg);
         if (init_value_) {
@@ -106,9 +109,8 @@ llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
             if (!InitVal) return nullptr;
             cg.builder().CreateStore(InitVal, alloc);
         }
-        cg.symbol().setValue(varname_, Variable(varname_, type_, alloc));
     }
-
+    cg.symbol().setAlloc(varname_, alloc);
     return Constant::getNullValue(Type::getDoubleTy(cg.context()));
 }
 
@@ -280,77 +282,64 @@ llvm::Value* CallExprAST::generateCode(CodeGenerator& cg) {
 }
 
 llvm::Function* PrototypeAST::generateCode(CodeGenerator& cg) {
-    F.name = ::Function::mangle(F);
-    auto p = cg.getFunction(F.name);
+    auto p = cg.symbol().getFunction(name_);
     if (p) return p;
     std::vector<llvm::Type*> ArgT;
-    if (F.classType.typeName != "") 
-        ArgT.push_back(PointerType::getUnqual(cg.symbol().getLLVMType(F.classType)));
-    for(auto& t:F.args) {
-        auto type = get_type(t.type,cg);
-       // if (!type) type = get_builtin_type(t.type,cg);
-        if(!type) return LogErrorF("Unknown type.");
+    if (class_type_ != "") 
+        ArgT.push_back(PointerType::getUnqual(cg.symbol().getType(class_type_)));
+    for(auto& t: arg_list_) {
+        auto type = cg.symbol().getType(t.first);
+        assert(type != nullptr);
         ArgT.push_back(type);
     }
-    auto FT = FunctionType::get(get_type(F.returnType,cg), ArgT, false);
-    auto Func = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, F.name , cg.getModule());
-    int i = F.classType.typeName == "" ?0:-1;
+    auto FT = FunctionType::get(cg.symbol().getType(return_type_), ArgT, false);
+    auto Func = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, name_ , cg.getModule());
+    int i = class_type_ == "" ?0:-1;
     for (auto& arg : Func->args())
     {
         if (i == -1) arg.setName("this");
-        else arg.setName(F.args[i].name);
+        else arg.setName(arg_list_[i].second);
         ++i;
     }
-    if(F.classType.typeName!="")
-    {
-        F.args.insert(F.args.begin(), Variable("this", F.classType));
-    }
-    F.alloc = Func;
-    cg.symbol().addFunction(F.name, F);
+    cg.symbol().setFunction(name_, Func);
     return Func;
 }
 
 llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
-    auto F = cg.getFunction(functionName);
-    auto Func = cg.symbol().getMangledFunction(functionName);
-    if (!F) LogError("No function named " + functionName+".");
-    //if (!F) F = Proto->generateCode(cg);
-    //if (!F) return nullptr;
-    //if (!F->empty()) return LogErrorF("Cannot redefine function.");
-    if (!Body) return F;
+    auto F = cg.symbol().getFunction(function_name_);
+    assert(F != nullptr);
+    if (body_ == nullptr) return nullptr;
     BasicBlock* BB = BasicBlock::Create(cg.context(), "entry", F);
     SymbolTable::ScopeGuard sg(cg.symbol());
     cg.builder().SetInsertPoint(BB);
     int i = 0;
     for(auto& Arg:F->args()) {
-        auto alloca = CreateEntryBlockAlloca(F,Arg.getType(), Arg.getName(), cg);
-        cg.builder().CreateStore(&Arg, alloca);
-        cg.symbol().setValue(Func.args[i].name, 
-            Variable(Func.args[i].name, Func.args[i].type,alloca));
+        //auto alloc = CreateEntryBlockAlloca(F, Arg.getType(), Arg.getName(), cg);
+        auto alloc = cg.builder().CreateAlloca(Arg.getType(),nullptr,Arg.getName());
+        cg.builder().CreateStore(&Arg, alloc);
+        cg.symbol().setAlloc(Arg.getName(), alloc);
         i++;
     }
-    bool hasReturn = false;
-    if(Func.classType.typeName!="")
+    if(class_name_!="")
     {
-        auto c = cg.symbol().getClass(Func.classType);
-        int i = 0;
-        for(auto& v:c.memberVariables)
+        auto c = cg.symbol().getClass(class_name_);
+        Value* data = cg.symbol().getAlloc("this");
+        data = cg.builder().CreateLoad(data);
+        i = 0;
+        for(auto& v:c.members)
         {
-            Value* index = ConstantInt::get(cg.context(),
-                APInt(32, i++));
-            Value* data = cg.symbol().getValue("this").alloc;
-            data = cg.builder().CreateLoad(data);
+            Value* index = ConstantInt::get(cg.context(),APInt(32, i++));
             std::vector<llvm::Value*> indices(2);
             indices[0] = llvm::ConstantInt::get(cg.context(), llvm::APInt(32, 0, true));
             indices[1] = index;
             Value* ptr = cg.builder().CreateGEP(data, indices, "memberptr");
-            cg.symbol().setValue(v.name, Variable(v.name, v.type, static_cast<AllocaInst*>(ptr)));
+            cg.symbol().setAlloc(v.second, static_cast<AllocaInst*>(ptr));
         }
-        
     }
-    for(auto& i:Body->instructions()) {
-        i->generateCode(cg);
-        if(dynamic_cast<ReturnAST*>(i.get())!=nullptr) {
+    bool hasReturn = false;
+    for(auto& ins:body_->instructions()) {
+        ins->generateCode(cg);
+        if(dynamic_cast<ReturnAST*>(ins.get())!=nullptr) {
             hasReturn = true;
         }
     }
@@ -367,27 +356,30 @@ llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
     //
     if (!hasReturn) cg.builder().CreateRet(nullptr);
     if(llvm::verifyFunction(*F,&errs())) {
-        std::cout<<std::endl << "something bad happened ...\n";
+        std::cout << std::endl << "something bad happened ...\n";
     }
-    cg.FPM()->run(*F);
+    //cg.FPM()->run(*F);
     return F;
 }
 
 llvm::StructType* ClassAST::generateCode(CodeGenerator& cg)
 {
-    auto type = StructType::create(cg.context(), c.type.typeName);
-    cg.symbol().addClass(c.type, c);
+    auto type = StructType::create(cg.context(), name_);
+    cg.symbol().setType(name_,type);
     std::vector<Type*> members;
-    for(auto m:c.memberVariables)
+    for(auto m:members_)
     {
-        members.push_back(get_type(m.type, cg));
+        members.push_back(cg.symbol().getType(m.first));
         //auto t = get_builtin_type(m.type, cg);
         //if (!t)
         //    members.push_back(cg.symbol().getType(m.type));
         //else members.push_back(t);
     }
     type->setBody(members);
-    cg.symbol().setLLVMType(c.type,type);
+    ClassSymbol symbol;
+    symbol.type = type;
+    symbol.members = std::move(members_);
+    cg.symbol().setClass(name_, symbol);
     //for(auto fn:c.memberFunctions)
     //{
     //    cg.symbol().getFunction(fn.name)
@@ -400,19 +392,18 @@ llvm::Value* ClassAST::generateFunction_new(CodeGenerator& cg)
 {
     ::Function f;
     f.name = "new";
-    f.classType = c.type;
+    f.classType = name_;
     VarType retType("__ptr");
-    retType.templateArgs.push_back(VarType(c.type.typeName));
+    retType.templateArgs.push_back(VarType(name_));
     f.name = ::Function::mangle(f);
-    auto FT = FunctionType::get(get_type(retType, cg), std::vector<Type*>(), false);
+    auto FT = FunctionType::get(cg.symbol().getType(::VarType::mangle(retType)), std::vector<Type*>(), false);
     auto Func = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, f.name, cg.getModule());
-    f.alloc = Func;
-    cg.symbol().addFunction(::Function::mangle(f), f);
+    cg.symbol().setFunction(::Function::mangle(f), Func);
     BasicBlock* BB = BasicBlock::Create(cg.context(), "entry", Func);
     cg.builder().SetInsertPoint(BB);
     std::vector<Value*> index;
     index.push_back(ConstantInt::get(cg.context(), APInt(32, 1)));
-    auto size = cg.builder().CreateGEP(Constant::getNullValue(PointerType::get(get_type(c.type, cg), 0)), index);
+    auto size = cg.builder().CreateGEP(Constant::getNullValue(PointerType::get(cg.symbol().getType(name_), 0)), index);
     size = cg.builder().CreateCast(llvm::Instruction::CastOps::PtrToInt, size, get_builtin_type("i32", cg));
     std::vector<Value*> args;
     args.push_back(size);
@@ -423,9 +414,8 @@ llvm::Value* ClassAST::generateFunction_new(CodeGenerator& cg)
 }
 
 
-MemberAccessAST::MemberAccessAST(std::unique_ptr<ExprAST> Var, std::string Member, OperatorType Op,
-                                 const VarType& retType): ExprAST(retType), var(std::move(Var)),
-                                                              member(std::move(Member)), op(Op)
+MemberAccessAST::MemberAccessAST(std::unique_ptr<ExprAST> Var, int index,
+    const VarType& retType): ExprAST(retType), var(std::move(Var)), memberIndex(index)
 {
 }
 
@@ -433,8 +423,7 @@ llvm::Value* MemberAccessAST::generateCode(CodeGenerator& cg)
 {
     var->generateCode(cg);
     alloca_ = dynamic_cast<AllocAST*>(var.get())->getAlloc();
-    Value* index = ConstantInt::get(cg.context(),
-        APInt(32, cg.symbol().getClassMemberIndex(var->getType(), member)));
+    Value* index = ConstantInt::get(cg.context(), APInt(32, memberIndex));
     Value* data = var->generateCode(cg);
     std::vector<llvm::Value*> indices(2);
     indices[0] = llvm::ConstantInt::get(cg.context(), llvm::APInt(32, 0, true));
@@ -508,4 +497,9 @@ llvm::Value* UnaryExprAST::generateCode(CodeGenerator& cg)
 llvm::Value* NamespaceExprAST::generateCode(CodeGenerator& cg) {
     LogError("Namespace cannot generate code.");
     return nullptr;
+}
+
+llvm::Value* NonExprAST::generateCode(CG::CodeGenerator& cg)
+{
+    return llvm::Constant::getNullValue(llvm::Type::getVoidTy(cg.context()));
 }

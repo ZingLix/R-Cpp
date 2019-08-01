@@ -1,5 +1,7 @@
 #include "SymbolTable.h"
-#include "CodeGenerator.h"
+#include "../CodeGenerator/CodeGenerator.h"
+
+using namespace Parse;
 
 SymbolTable::SymbolTable():helper_("",nullptr),cur_namespace_(&helper_)
 {
@@ -45,18 +47,6 @@ void SymbolTable::setValue(const std::string& name, Variable val)
     named_values_.back()[name] = val;
 }
 
-void SymbolTable::addFunction(const std::string& name, ::Function func)
-{
-    mangled_function_map_[name] = func;
-}
-
-Function SymbolTable::getMangledFunction(const std::string& name)
-{
-    auto t = mangled_function_map_.find(name);
-    if (t != mangled_function_map_.end()) return t->second;
-    return ::Function();
-}
-
 bool SymbolTable::hasType(const VarType& t) {
     if(!is_builtin_type(t.typeName))
         return getClass(t).type.typeName != "";
@@ -81,26 +71,6 @@ Class SymbolTable::getClass(const VarType& t)
     return {};
 }
 
-
-llvm::Type* SymbolTable::getLLVMType(const VarType& type)
-{
-    if (is_builtin_type(type.typeName)) return nullptr;
-    return getClass(type.typeName).type_llvm;
-}
-
-void SymbolTable::setLLVMType(const VarType& t, llvm::Type* tp)
-{
-    NamespaceHelper* ns = &helper_;
-    for (auto& n : t.namespaceHierarchy) {
-        auto it = ns->nextNS.find(n);
-        if (it == ns->nextNS.end()) return;
-        ns = it->second.get();
-    }
-    auto it = ns->namedClass.find(t);
-    if (it == ns->namedClass.end()) return;
-    it->second.type_llvm=tp;
-}
-
 VarType SymbolTable::getClassMemberType(const VarType& classType, const std::string& memberName)
 {
     auto c = getClass(classType);
@@ -121,12 +91,12 @@ int SymbolTable::getClassMemberIndex(const VarType& className, const std::string
     return -1;
 }
 
-void SymbolTable::addRawFunction(const ::Function& func)
+void SymbolTable::addFunction(const ::Function& func)
 {
     cur_namespace_->namedFunction[func.name].push_back(func);
 }
 
-const std::vector<Function>* SymbolTable::getRawFunction(const std::string& name, const std::vector<std::string>& ns_hierarchy)
+const std::vector<Function>* SymbolTable::getFunction(const std::string& name, const std::vector<std::string>& ns_hierarchy)
 {
     auto cur = cur_namespace_;
     while (cur!=nullptr)
@@ -151,4 +121,25 @@ const std::vector<Function>* SymbolTable::getRawFunction_(const std::string& nam
         if (ns == nullptr) return {};
     }
     return &(ns->namedFunction[name]);
+}
+
+void SymbolTable::addClassTemplate(ClassTemplate template_)
+{
+    cur_namespace_->classTemplate[template_.type] = std::move(template_);
+}
+
+ClassTemplate SymbolTable::getClassTemplate(VarType name)
+{
+    auto cur = cur_namespace_;
+    while (cur != nullptr) {
+        auto t = getClassTemplate_(name, cur);
+        if (t.token.size() != 0) return t;
+        cur = cur->lastNS;
+    }
+    return {};
+}
+
+ClassTemplate SymbolTable::getClassTemplate_(VarType name, NamespaceHelper* ns)
+{
+    return ns->classTemplate[name];
 }

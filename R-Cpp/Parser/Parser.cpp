@@ -2,19 +2,21 @@
 #include <stack>
 #include <iostream>
 
-std::unique_ptr<ExprAST> Parser::ParseIntegerExpr() {
+using namespace Parse;
+
+std::unique_ptr<ExprAST> Parse::Parser::ParseIntegerExpr() {
     auto res = std::make_unique<IntegerExprAST>(std::stoi(cur_token_.content));
     getNextToken();
     return res;
 }
 
-std::unique_ptr<ExprAST> Parser::ParseFloatExpr() {
+std::unique_ptr<ExprAST> Parse::Parser::ParseFloatExpr() {
     auto res = std::make_unique<FloatExprAST>(std::stof(cur_token_.content));
     getNextToken();
     return res;
 }
 
-std::unique_ptr<ExprAST> Parser::ParseStatement() {
+std::unique_ptr<ExprAST> Parse::Parser::ParseStatement() {
     if (cur_token_.type == TokenType::Return) {
         return ParseReturnExpr();
     }
@@ -24,10 +26,15 @@ std::unique_ptr<ExprAST> Parser::ParseStatement() {
     if (cur_token_.type == TokenType::For) {
         return ParseForExpr();
     }
+    if(cur_token_.type==TokenType::Using)
+    {
+        ParseUsing();
+        return std::make_unique<NonExprAST>();
+    }
     return ParseExpression();
 }
 
-std::unique_ptr<ExprAST> Parser::ParsePrimary() {
+std::unique_ptr<ExprAST> Parse::Parser::ParsePrimary() {
     if (cur_token_.type == TokenType::Identifier) {
         auto e = ParseIdentifierExpr();
         while (isPostOperator()) 
@@ -55,7 +62,7 @@ std::unique_ptr<ExprAST> Parser::ParsePrimary() {
     return nullptr;
 }
 
-bool Parser::isPostOperator()
+bool Parse::Parser::isPostOperator()
 {
     if (cur_token_.type == TokenType::lSquare) {
         return true;
@@ -74,11 +81,11 @@ bool Parser::isPostOperator()
     return false;
 }
 
-std::unique_ptr<ExprAST> Parser::ParsePostOperator(std::unique_ptr<ExprAST> e)
+std::unique_ptr<ExprAST> Parse::Parser::ParsePostOperator(std::unique_ptr<ExprAST> e)
 {
     auto type = e->getType();
     if (cur_token_.type == TokenType::lSquare) {
-        if (type.typeName != "Arr") {
+        if (type.typeName != "__arr") {
             error("No suitable [] operator for " + type.typeName + ".");
             return nullptr;
         }
@@ -124,7 +131,7 @@ std::unique_ptr<ExprAST> Parser::ParsePostOperator(std::unique_ptr<ExprAST> e)
     return e;
 }
 
-std::unique_ptr<ExprAST> Parser::ParseParenExpr() {
+std::unique_ptr<ExprAST> Parse::Parser::ParseParenExpr() {
     // ( expression )
     getNextToken(); //eat (
     auto expr = ParseExpression();
@@ -137,13 +144,13 @@ std::unique_ptr<ExprAST> Parser::ParseParenExpr() {
     return expr;
 }
 
-std::unique_ptr<ExprAST> Parser::ParseIdentifierExpr() {
+std::unique_ptr<ExprAST> Parse::Parser::ParseIdentifierExpr() {
     auto idname = cur_token_.content;
     getNextToken();
     // is defining a identifier
  //   if (cur_token_.type_llvm == TokenType::Identifier||cur_token_.type_llvm==TokenType::lAngle) {
     if(symbol_->hasType(idname)&&(cur_token_.type == TokenType::Identifier || cur_token_.type == TokenType::lAngle)){
-        return ParseVaribleDefinition(idname);
+        return ParseVariableDefinition(idname);
     }
     if(cur_token_.type==TokenType::Colon)
     {
@@ -179,7 +186,7 @@ std::unique_ptr<ExprAST> Parser::ParseIdentifierExpr() {
         }
     }
     getNextToken();
-    auto fnList = symbol_->getRawFunction(idname,cur_namespace_);
+    auto fnList = symbol_->getFunction(idname,cur_namespace_);
     Function target;
     for(auto&f:*fnList)
     {
@@ -207,7 +214,7 @@ std::unique_ptr<ExprAST> Parser::ParseIdentifierExpr() {
     return std::make_unique<CallExprAST>(Function::mangle(target), std::move(args),target.returnType);
 }
 
-std::unique_ptr<ExprAST> Parser::ParseForExpr() {
+std::unique_ptr<ExprAST> Parse::Parser::ParseForExpr() {
     SymbolTable::ScopeGuard sg(*symbol_);
     getNextToken(); //eat for
     if(cur_token_.type!=TokenType::lParenthesis) {
@@ -237,7 +244,7 @@ std::unique_ptr<ExprAST> Parser::ParseForExpr() {
     return std::make_unique<ForExprAST>(std::move(start), std::move(cond), std::move(end), std::move(body));
 }
 
-std::unique_ptr<ExprAST> Parser::ParseVaribleDefinition(const std::string& type_name) {
+std::unique_ptr<ExprAST> Parse::Parser::ParseVariableDefinition(const std::string& type_name) {
     std::vector<VarType> template_args;
     if(cur_token_.type==TokenType::lAngle)
     {
@@ -246,9 +253,45 @@ std::unique_ptr<ExprAST> Parser::ParseVaribleDefinition(const std::string& type_
     auto varname = cur_token_.content;
     auto type = VarType(type_name);
     type.templateArgs = template_args;
+    auto c = symbol_->getClass(type);
+    if (c.type.typeName == "") {
+        if(type_name=="__arr")
+        {
+            if(template_args.size()!=2)
+            {
+                error("Invalid count of arguments for Arr.");
+                return nullptr;
+            }
+
+        }else if(type_name=="__ptr")
+        {
+            if(template_args.size()!=1)
+            {
+                error("Invalid count of arguments for __ptr.");
+                return nullptr;
+            }
+        }
+        else if (template_args.size() != 0)
+        {
+            c.type= InstantiateTemplate(type, type.templateArgs).type;
+        }else if(!is_builtin_type(type_name))
+        {
+            error("No type named " + type_name + ".");
+            return nullptr;
+        }
+    }
     symbol_->setValue(varname, Variable(varname, type));
     getNextToken();
-    auto expr = std::make_unique<VariableDefAST>(type, varname);
+    auto expr = std::make_unique<VariableDefAST>(::VarType::mangle(type), varname);
+    if(type_name =="__arr"||type_name=="__ptr")
+    {
+        std::vector<std::string> tempargs;
+        for(auto&v :type.templateArgs)
+        {
+            tempargs.push_back(::VarType::mangle(v));
+        }
+        expr->setTemplateArgs(tempargs);
+    }
     if (cur_token_.type == TokenType::Equal) {
         // definition with initiate value
         getNextToken();   // eat =
@@ -262,7 +305,7 @@ std::unique_ptr<ExprAST> Parser::ParseVaribleDefinition(const std::string& type_
     return expr;
 }
 
-std::unique_ptr<ExprAST> Parser::ParseReturnExpr() {
+std::unique_ptr<ExprAST> Parse::Parser::ParseReturnExpr() {
     getNextToken();
     auto retval = ParseExpression();
     if (retval != nullptr) return std::make_unique<ReturnAST>(std::move(retval));
@@ -271,7 +314,7 @@ std::unique_ptr<ExprAST> Parser::ParseReturnExpr() {
     return nullptr;
 }
 
-std::unique_ptr<ExprAST> Parser::MergeExpr(std::unique_ptr<ExprAST> LHS, std::unique_ptr<ExprAST> RHS, OperatorType Op)
+std::unique_ptr<ExprAST> Parse::Parser::MergeExpr(std::unique_ptr<ExprAST> LHS, std::unique_ptr<ExprAST> RHS, OperatorType Op)
 {
     if (Op != OperatorType::MemberAccessP) {
         return std::make_unique<BinaryExprAST>(Op, std::move(LHS),
@@ -281,7 +324,7 @@ std::unique_ptr<ExprAST> Parser::MergeExpr(std::unique_ptr<ExprAST> LHS, std::un
     return nullptr;
 }
 
-std::unique_ptr<ExprAST> Parser::ParseExpression() {
+std::unique_ptr<ExprAST> Parse::Parser::ParseExpression() {
     auto LHS = ParsePrimary();
     if (!LHS)
         return nullptr;
@@ -293,7 +336,7 @@ std::unique_ptr<ExprAST> Parser::ParseExpression() {
     {
         OperatorType op;
         if (cur_token_.type == TokenType::Semicolon||cur_token_.type==TokenType::rParenthesis
-            ||cur_token_.type==TokenType::rSquare)
+            ||cur_token_.type==TokenType::rSquare||cur_token_.type==TokenType::Comma)
         {
             if (ops.top() == OperatorType::None) break;
             op = OperatorType::None;
@@ -336,7 +379,7 @@ std::unique_ptr<ExprAST> Parser::ParseExpression() {
    return std::move(expr.top());
 }
 
-OperatorType Parser::getNextBinOperator()
+OperatorType Parse::Parser::getNextBinOperator()
 {
     auto ret = [&](OperatorType o) {
         getNextToken();
@@ -444,7 +487,7 @@ OperatorType Parser::getNextBinOperator()
     return TokenToBinOperator(first);
 }
 
-OperatorType Parser::getNextUnaryOperator()
+OperatorType Parse::Parser::getNextUnaryOperator()
 {
     auto ret = [&](OperatorType o) {
         getNextToken();
@@ -479,7 +522,7 @@ OperatorType Parser::getNextUnaryOperator()
     return OperatorType::None;
 }
 
-std::unique_ptr<ExprAST> Parser::ParseIfExpr() {
+std::unique_ptr<ExprAST> Parse::Parser::ParseIfExpr() {
     getNextToken();  // eat if
     auto cond = ParseParenExpr();
     if (!cond) return nullptr;
@@ -500,37 +543,38 @@ std::unique_ptr<ExprAST> Parser::ParseIfExpr() {
     return std::make_unique<IfExprAST>(std::move(cond), std::move(then));
 }
 
-std::unique_ptr<PrototypeAST> Parser::ParsePrototype() {
+::Function Parse::Parser::ParsePrototype() {
     if (cur_token_.type != TokenType::Identifier)
     {
         error("Expected function name in prototype");
-        return nullptr;
+        return {};
     }
     std::string FnName = cur_token_.content;
     getNextToken();
     if (cur_token_.type != TokenType::lParenthesis) {
         error("Expected '(' in prototype");
-        return nullptr;
+        return {};
     }
     // Read the list of argument names.
     std::vector<Variable> ArgNames;
-    // std::vector<std::pair<std::string, std::string>> ArgNames;
-    while (getNextToken().type == TokenType::Identifier) {
-        auto type_name = cur_token_.content;
-        getNextToken();
-        ArgNames.emplace_back(cur_token_.content,type_name);
+    getNextToken();
+    while (cur_token_.type != TokenType::rParenthesis) {
+        auto type = ParseType();
+       // getNextToken();
+        ArgNames.emplace_back(Variable(cur_token_.content,type));
         getNextToken();
         if (cur_token_.type == TokenType::rParenthesis) break;
         if (cur_token_.type != TokenType::Comma)
         {
             error("Expected , to split arguments.");
-            return nullptr;
+            return {};
         }
+        getNextToken();
     }
 
     if (cur_token_.type != TokenType::rParenthesis) {
         error("Expected ')' in prototype");
-        return nullptr;
+        return {};
     }
 
     getNextToken(); // eat ')'.
@@ -541,12 +585,12 @@ std::unique_ptr<PrototypeAST> Parser::ParsePrototype() {
         if(op!=OperatorType::MemberAccessA)
         {
             error("Unexpected symbol.");
-            return nullptr;
+            return {};
         }
         if(cur_token_.type!=TokenType::Identifier||!symbol_->hasType(cur_token_.content))
         {
             error("Unknown type.");
-            return nullptr;
+            return {};
         }
         retType = ParseType();
         if(!symbol_->hasType(retType))
@@ -556,15 +600,28 @@ std::unique_ptr<PrototypeAST> Parser::ParsePrototype() {
     }else if(cur_token_.type!=TokenType::lBrace)
     {
         error("Return value must be pointed out explicitly when declaring a function prototype.");
-        return nullptr;
+        return {};
+    }else
+    {
+        retType.typeName = "void";
     }
-    auto p = std::make_unique<PrototypeAST>(Function(FnName, ArgNames, retType, isExternal));
-    if (cur_class_.typeName != "") 
-        p->setClassType(cur_class_);
-    return p;
+    Function f(FnName, ArgNames, retType, isExternal);
+    if (cur_class_.typeName != "")
+        f.classType = cur_class_;
+    std::vector<std::pair<std::string, std::string>> argList;
+    for(auto& v:f.args)
+    {
+        argList.emplace_back(::VarType::mangle(v.type), v.name);
+    }
+    auto p = std::make_unique<PrototypeAST>(::Function::mangle(f),std::move(argList),::VarType::mangle(retType));
+    if (cur_class_.typeName != "")
+        p->setClassType(::VarType::mangle(cur_class_));
+    proto_.emplace_back(std::move(p));
+    symbol_->addFunction(f);
+    return f;
 }
 
-std::unique_ptr<BlockExprAST> Parser::ParseBlock() {
+std::unique_ptr<BlockExprAST> Parse::Parser::ParseBlock() {
     std::vector<std::unique_ptr<ExprAST>> body;
     if(cur_token_.type!=TokenType::lBrace)
     {
@@ -594,14 +651,11 @@ std::unique_ptr<BlockExprAST> Parser::ParseBlock() {
     return std::make_unique<BlockExprAST>(std::move(body));
 }
 
-std::unique_ptr<FunctionAST> Parser::ParseFunction() {
+::Function Parse::Parser::ParseFunction() {
     getNextToken(); // eat fn.
-    auto Proto = ParsePrototype();
-    if (!Proto) return nullptr;
-    symbol_->addRawFunction(Proto->getFunction());
-    auto f = Proto->getFunction();
+    auto f = ParsePrototype();
+    if (f.name=="") return {};
     auto name = ::Function::mangle(f);
-    proto_.emplace_back(std::move(Proto));
     SymbolTable::ScopeGuard sg(*symbol_);
     for(auto it:f.args)
     {
@@ -610,45 +664,46 @@ std::unique_ptr<FunctionAST> Parser::ParseFunction() {
     if(cur_token_.type==TokenType::Semicolon)
     {
         getNextToken();
-        return std::make_unique<FunctionAST>(name, nullptr);
+        return f;
     }
     if (cur_token_.type != TokenType::lBrace) {
         error("Expected { or ;.");
-        return nullptr;
+        return {};
     }
     auto body = ParseBlock();
     if (!body) {
-        return nullptr;
+        return {};
     }
-    return std::make_unique<FunctionAST>(name, std::move(body));
+    expr_.push_back(std::make_unique<FunctionAST>(name, std::move(body),::VarType::mangle(f.classType)));
+    return f;
 }
 
-void Parser::HandleDefinition() {
+void Parse::Parser::HandleDefinition() {
     auto func = ParseFunction();
-    if (func != nullptr) {
+    if (func.name != "") {
         fprintf(stderr, "Parsed a function definition.\n");
-        expr_.emplace_back(std::move(func));
+        //expr_.emplace_back(std::move(func));
     } else {
         // Skip token for error recovery.
         getNextToken();
     }
 }
 
-std::unique_ptr<ClassAST> Parser::ParseClass()
+std::unique_ptr<ClassAST> Parse::Parser::ParseClass(std::string className)
 {
     getNextToken();  // eat class
     if (cur_token_.type != TokenType::Identifier) {
         error("Expected class name.");
         return nullptr;
     }
-    auto className = cur_token_.content;
+    if(className=="")
+        className = cur_token_.content;
     Class c(className);
     getNextToken();
     if (cur_token_.type != TokenType::lBrace) {
         error("Expect class body.");
         return nullptr;
     }
-
     getNextToken(); // eat ;
     {
         SymbolTable::ScopeGuard guard(*symbol_);
@@ -657,33 +712,37 @@ std::unique_ptr<ClassAST> Parser::ParseClass()
         cur_class_ = c.type;
         while (cur_token_.type != TokenType::rBrace) {
             if (cur_token_.type == TokenType::Identifier) {
-                auto type = cur_token_.content;
+                auto type = ParseType();
+                auto name = cur_token_.content;
                 getNextToken();
-                auto res = ParseVaribleDefinition(type);
-                auto var = dynamic_cast<VariableDefAST*>(res.get());
-                if (!var) {
-                    error("Unknown error.");
+                if (name=="") {
+                    error("Invalid declaration.");
                     return nullptr;
                 }
-                symbol_->getClass(c.type);
-                c.memberVariables.emplace_back(var->getVarName(), var->getVarType());
+                symbol_->setValue(name, Variable(name, type));
+                c.memberVariables.emplace_back(name, type);
             } else if (cur_token_.type == TokenType::Function) {
                 auto fn = ParseFunction();
-                Function f(proto_.back()->getFunction());
-                c.memberFunctions.push_back(f);
-                expr_.push_back(std::move(fn));
+                //Function f(proto_.back()->getFunction());
+                c.memberFunctions.push_back(fn);
+                //expr_.push_back(std::move(fn));
                 //symbol_->addFunction(f.name, f);
             }
             if (cur_token_.type == TokenType::Semicolon) getNextToken();
         }
-        symbol_->addRawFunction(generateFunction_new(c.type));
+        symbol_->addFunction(generateFunction_new(c.type));
         cur_class_ = tmp;
     }
     symbol_->addClass(className, c);
-    return std::make_unique<ClassAST>(c);
+    std::vector<std::pair<std::string, std::string>> members;
+    for(auto&v:c.memberVariables)
+    {
+        members.emplace_back(::VarType::mangle(v.type), v.name);
+    }
+    return std::make_unique<ClassAST>(className,std::move(members));
 }
 
-void Parser::HandleClass()
+void Parse::Parser::HandleClass()
 {
     auto c = ParseClass();
     if(c)
@@ -696,7 +755,7 @@ void Parser::HandleClass()
     }
 }
 
-void Parser::MainLoop() {
+void Parse::Parser::MainLoop() {
     while (1) {
         switch (cur_token_.type) {
         case TokenType::Eof:
@@ -716,6 +775,9 @@ void Parser::MainLoop() {
         case TokenType::Internal:
             ParseInternal();
             break;
+        case TokenType::Using:
+            ParseUsing();
+            break;
         default:
             getNextToken();
             //    HandleTopLevelExpression();
@@ -724,31 +786,33 @@ void Parser::MainLoop() {
     }
 }
 
-std::vector<std::unique_ptr<FunctionAST>>& Parser::AST() {
+std::vector<std::unique_ptr<FunctionAST>>& Parse::Parser::AST() {
     return expr_;
 }
 
-Token& Parser::getNextToken() {
-    return cur_token_ = lexer_.nextToken();
+Token& Parse::Parser::getNextToken() {
+    if(extra_token_stream_.size()==0)
+        return cur_token_ = lexer_.nextToken();
+    return extra_token_stream_[extra_token_stream_index_++];
 }
 
-void Parser::error(const std::string& errmsg)
+void Parse::Parser::error(const std::string& errmsg)
 {
     std::cout << lexer_.getLineNo() << "." << lexer_.getCharNo() << ":\t";
     std::cout << errmsg << std::endl;
 }
 
-std::vector<std::unique_ptr<ClassAST>>& Parser::Classes()
+std::vector<std::unique_ptr<ClassAST>>& Parse::Parser::Classes()
 {
     return class_;
 }
 
-std::vector<std::unique_ptr<PrototypeAST>>& Parser::Prototypes()
+std::vector<std::unique_ptr<PrototypeAST>>& Parse::Parser::Prototypes()
 {
     return proto_;
 }
 
-std::vector<std::unique_ptr<ExprAST>> Parser::ParseExprList(TokenType endToken)
+std::vector<std::unique_ptr<ExprAST>> Parse::Parser::ParseExprList(TokenType endToken)
 {
     std::vector<std::unique_ptr<ExprAST>> exprs;
     while (cur_token_.type!=endToken)
@@ -765,7 +829,7 @@ std::vector<std::unique_ptr<ExprAST>> Parser::ParseExprList(TokenType endToken)
     return exprs;
 }
 
-std::vector<std::unique_ptr<ExprAST>> Parser::ParseParenExprList()
+std::vector<std::unique_ptr<ExprAST>> Parse::Parser::ParseParenExprList()
 {
     getNextToken(); // eat (
     auto exprs = ParseExprList(TokenType::rParenthesis);
@@ -773,7 +837,7 @@ std::vector<std::unique_ptr<ExprAST>> Parser::ParseParenExprList()
     return exprs;
 }
 
-std::vector<std::unique_ptr<ExprAST>> Parser::ParseSquareExprList()
+std::vector<std::unique_ptr<ExprAST>> Parse::Parser::ParseSquareExprList()
 {
     getNextToken(); // eat [
     auto exprs = ParseExprList(TokenType::rSquare);
@@ -781,7 +845,7 @@ std::vector<std::unique_ptr<ExprAST>> Parser::ParseSquareExprList()
     return exprs;
 }
 
-std::vector<VarType> Parser::ParseAngleExprList()
+std::vector<VarType> Parse::Parser::ParseAngleExprList()
 {
     getNextToken(); // eat <
     //auto exprs = ParseExprList(TokenType::rAngle);
@@ -801,7 +865,7 @@ std::vector<VarType> Parser::ParseAngleExprList()
     return exprs;
 }
 
-VarType Parser::ParseType()
+VarType Parse::Parser::ParseType()
 {
     /*bool isconst = false;
     if(cur_token_.content=="const")
@@ -817,7 +881,7 @@ VarType Parser::ParseType()
     return VarType(type);
 }
 
-std::unique_ptr<ExprAST> Parser::ParseMemberAccess(std::unique_ptr<ExprAST> lhs,OperatorType Op)
+std::unique_ptr<ExprAST> Parse::Parser::ParseMemberAccess(std::unique_ptr<ExprAST> lhs,OperatorType Op)
 {
     auto type = lhs->getType();
     auto name = cur_token_.content;
@@ -854,23 +918,26 @@ std::unique_ptr<ExprAST> Parser::ParseMemberAccess(std::unique_ptr<ExprAST> lhs,
     }else
     {
         VarType retType;
+        int i = 0;
         for(auto& m:symbol_->getClass(type).memberVariables)
         {
             if(m.name==name)
             {
                 retType = m.type;
+                break;
             }
+            ++i;
         }
         if(retType.typeName=="")
         {
             error("No '" + name + "' in class " + type.typeName + ".");
             return nullptr;
         }
-        return std::make_unique<MemberAccessAST>(std::move(lhs), name, Op, retType);
+        return std::make_unique<MemberAccessAST>(std::move(lhs), i, retType);
     }
 }
 
-Function Parser::generateFunction_new(const VarType& t)
+Function Parse::Parser::generateFunction_new(const VarType& t)
 {
     Function f;
     f.name = "new";
@@ -881,12 +948,12 @@ Function Parser::generateFunction_new(const VarType& t)
     return f;
 }
 
-std::shared_ptr<SymbolTable> Parser::symbolTable()
+std::shared_ptr<SymbolTable> Parse::Parser::symbolTable()
 {
     return symbol_;
 }
 
-void Parser::ParseExternal()
+void Parse::Parser::ParseExternal()
 {
     isExternal = true;
     getNextToken();
@@ -894,10 +961,117 @@ void Parser::ParseExternal()
         error("Expected : after external.");
     getNextToken();
 }
-void Parser::ParseInternal() {
+void Parse::Parser::ParseInternal() {
     isExternal = false;
     getNextToken();
     if (cur_token_.type != TokenType::Colon)
         error("Expected : after internal.");
     getNextToken();
+}
+
+void Parse::Parser::ParseTemplateClass()
+{
+    getNextToken();  // eat <
+    std::vector<std::pair<VarType, std::string>> typelist;
+    while (cur_token_.type!=TokenType::rAngle)
+    {
+        auto type = ParseType();
+        auto name = cur_token_.content;
+        getNextToken();
+        if (cur_token_.type == TokenType::Comma) getNextToken();
+    }
+    getNextToken();  // eat >
+    if(cur_token_.content=="class")
+    {
+        std::vector<Token> tokenStream;
+        tokenStream.push_back(cur_token_);
+        getNextToken();
+        if(cur_token_.type!=TokenType::Identifier)
+        {
+            error("Invalid identifier.");
+            return;
+        }
+        auto name = cur_token_.content;
+        tokenStream.push_back(cur_token_);
+        getNextToken();
+        if(cur_token_.type!=TokenType::lBrace)
+        {
+            error("Expected { .");
+            return;
+        }
+        tokenStream.push_back(cur_token_);
+        getNextToken();
+        int i = 1;
+        while (true)
+        {
+            tokenStream.push_back(cur_token_);
+            getNextToken();
+            if (cur_token_.type == TokenType::lBrace) ++i;
+            if (cur_token_.type == TokenType::rBrace) --i;
+            if (i == 0) break;
+        }
+        ClassTemplate template_;
+        template_.type = VarType(name);
+        template_.token = std::move(tokenStream);
+        template_.typeList = std::move(typelist);
+        symbol_->addClassTemplate(std::move(template_));
+
+    }else
+    {
+        error("Only class supports template.");
+        return;
+    }
+}
+
+void Parse::Parser::ParseUsing()
+{
+    getNextToken();  // eat using
+    if (cur_token_.type != TokenType::Identifier)
+    {
+        error("Expected identifier after using.");
+        return;
+    }
+    auto newType = cur_token_.content;
+    getNextToken();
+    if(cur_token_.type!=TokenType::Equal)
+    {
+        error("Expected = after using typename.");
+        return;
+    }
+    getNextToken();  // eat =
+    auto oldType = ParseType();
+    auto c = symbol_->getClass(oldType);
+    if(c.type.typeName=="")
+    {
+        error("Unknown type.");
+        return;
+    }
+    symbol_->addClass(VarType(newType), c);
+}
+
+Class Parse::Parser::InstantiateTemplate(VarType type, std::vector<VarType> argList)
+{
+    auto template_ = symbol_->getClassTemplate(type);
+    type.templateArgs = argList;
+
+    setExtraTokenStream(std::move(template_.token));
+    SymbolTable::NamespaceGuard guard(*symbol_,"");
+    if(argList.size()!=template_.typeList.size())
+    {
+        error("Type arguments amount mismatch.");
+        return {};
+    }
+    for(size_t i = 0;i<template_.typeList.size();++i)
+    {
+        symbol_->addClass(VarType(template_.typeList[i].second), symbol_->getClass(argList[i]));
+    }
+    
+    auto c = ParseClass(::VarType::mangle(type));
+    if (c == nullptr) return {};
+    class_.push_back(std::move(c));
+    //Class class_(type);
+
+    return Class(type);
+    
+   
 }

@@ -12,11 +12,12 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
 #include <iostream>
-#include "Parser.h"
+#include "../Parser/Parser.h"
 
-CodeGenerator::CodeGenerator(Parser& p):parser_(p), Builder(TheContext), TheModule(std::make_unique<llvm::Module>("RCpp", context())),
-                                TheFPM(std::make_unique<llvm::legacy::FunctionPassManager>(TheModule.get())),
-                                Symbol(p.symbolTable())
+using namespace CG;
+
+CodeGenerator::CodeGenerator(Parse::Parser& p):parser_(p), Builder(TheContext), TheModule(std::make_unique<llvm::Module>("RCpp", context())),
+                                TheFPM(std::make_unique<llvm::legacy::FunctionPassManager>(TheModule.get())),st_(*this)
 {
     // Promote allocas to registers.
     TheFPM->add(llvm::createPromoteMemoryToRegisterPass());
@@ -98,11 +99,6 @@ void CodeGenerator::output() {
     pass.run(*TheModule);
     dest.flush();
     std::cout << "output to: " << Filename << std::endl;
-}
-
-SymbolTable& CodeGenerator::symbol()
-{
-    return *Symbol;
 }
 
 void CodeGenerator::generate()

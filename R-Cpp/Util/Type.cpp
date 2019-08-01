@@ -1,5 +1,5 @@
 #include "Type.h"
-#include "CodeGenerator.h"
+#include "../CodeGenerator/CodeGenerator.h"
 
 bool VarType::operator==(const VarType& other) const
 {
@@ -41,7 +41,28 @@ bool VarType::operator<(const VarType& other) const
     return typeName<other.typeName;
 }
 
-llvm::Type* get_builtin_type(const std::string& s, CodeGenerator& cg) {
+std::string VarType::mangle(const VarType& type)
+{
+    auto res = type.typeName;
+    if(type.templateArgs.size()!=0)
+    {
+        res += "_";
+        for(auto& v:type.templateArgs)
+        {
+            auto m = mangle(v);
+            if(isdigit(m[0]))
+            {
+                res += "I" + m;
+            }else
+            {
+                res +="T"+ std::to_string(m.length()) + mangle(v);
+            }
+        }
+    }
+    return res;
+}
+
+llvm::Type* get_builtin_type(const std::string& s, CG::CodeGenerator& cg) {
     if (s == "i32") return llvm::Type::getInt32Ty(cg.context());
     if (s == "i64") return llvm::Type::getInt64Ty(cg.context());
     if (s == "u32") return llvm::Type::getInt32Ty(cg.context());
@@ -53,7 +74,7 @@ llvm::Type* get_builtin_type(const std::string& s, CodeGenerator& cg) {
     return nullptr;
 }
 
-llvm::Value* get_builtin_type_default_value(const std::string& s, CodeGenerator& cg) {
+llvm::Value* get_builtin_type_default_value(const std::string& s, CG::CodeGenerator& cg) {
     if (s == "i32") return llvm::ConstantInt::get(cg.context(), llvm::APInt(32, 0, true));
     if (s == "i64") return llvm::ConstantInt::get(cg.context(), llvm::APInt(64, 0, true));
     if (s == "u32") return llvm::ConstantInt::get(cg.context(), llvm::APInt(32, 0, false));
@@ -79,15 +100,7 @@ bool is_builtin_type(llvm::Type::TypeID type) {
 bool is_builtin_type(const std::string& s) {
     return (s == "i32" || s == "i64" || s == "u32" ||
         s == "u64" || s == "bool" || s == "float" ||
-        s == "double" || s == "Arr"||s=="void"||s=="__ptr");
-}
-
-llvm::Type* get_type(VarType t, CodeGenerator& cg)
-{
-    if (t.typeName == "__ptr") return llvm::PointerType::get(get_type(t.templateArgs[0],cg),0);
-    auto type=  cg.symbol().getLLVMType(t);
-    if (!type) type = get_builtin_type(t.typeName, cg);
-    return type;
+        s == "double" || s == "__arr"||s=="void"||s=="__ptr");
 }
 
 std::string Function::mangle(const Function& F)

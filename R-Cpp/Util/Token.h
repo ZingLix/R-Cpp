@@ -18,6 +18,7 @@ enum class TokenType
     Float,
     External,
     Internal,
+    Using,
     lParenthesis = '(',
     rParenthesis = ')',
     lSquare = '[',
