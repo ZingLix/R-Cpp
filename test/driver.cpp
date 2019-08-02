@@ -7,6 +7,8 @@ extern "C"{
     int _R19classMemberFunctionI3i32(int);
     int _R5arrayI3i32(int);
     int _R3ptrI3i32I3i32(int,int);
+    int _R9TemplateA();
+    int _R9TemplateB();
 }
 
 int fibonacci(int i){
@@ -31,6 +33,14 @@ int array(int i){
 
 int ptr(int a,int b){
     return _R3ptrI3i32I3i32(a,b);
+}
+
+int templateA(){
+    return _R9TemplateA();
+}
+
+int templateB(){
+    return _R9TemplateB();
 }
 
 int Fibonacci(int i){
@@ -90,6 +100,11 @@ TEST(POINTER, basic){
     EXPECT_EQ(ptr(33,55),33+55);
     EXPECT_EQ(ptr(82,255),82+255);
     EXPECT_EQ(ptr(68,3),68+3);
+}
+
+TEST(TEMPLATE, basic){
+    EXPECT_EQ(templateA(),1);
+    EXPECT_EQ(templateB(),2);
 }
 
 int main(int ac, char* av[])

@@ -3,7 +3,7 @@
 
 using namespace Parse;
 
-SymbolTable::SymbolTable():helper_("",nullptr),cur_namespace_(&helper_)
+SymbolTable::SymbolTable(Parser& p):parser_(p), helper_("",nullptr),cur_namespace_(&helper_)
 {
     createScope();
 }
@@ -20,9 +20,9 @@ void SymbolTable::destroyScope()
 
 void SymbolTable::createNamespace(const std::string& name)
 {
-    helper_.createNewNS(name);
+    cur_namespace_->createNewNS(name);
     ns_hierarchy_.push_back(name);
-    cur_namespace_ = helper_.nextNS[name].get();
+    cur_namespace_ = cur_namespace_->nextNS[name].get();
 }
 
 void SymbolTable::destroyNamespace()
@@ -47,19 +47,19 @@ void SymbolTable::setValue(const std::string& name, Variable val)
     named_values_.back()[name] = val;
 }
 
-bool SymbolTable::hasType(const VarType& t) {
-    if(!is_builtin_type(t.typeName))
-        return getClass(t).type.typeName != "";
+bool SymbolTable::hasType(const std::string& t) {
+    if(!is_builtin_type(t))
+        return getClass(t).type.typeName != ""||getClassTemplate(t).type.typeName!="";
     return true;
 }
 
-void SymbolTable::addClass(const VarType& name, Class c)
+void SymbolTable::addClass(const std::string& name, Class c)
 {
     c.type.namespaceHierarchy = ns_hierarchy_;
     cur_namespace_->namedClass[name] = std::move(c);
 }
 
-Class SymbolTable::getClass(const VarType& t)
+Class SymbolTable::getClass(const std::string& t)
 {
     NamespaceHelper* ns = cur_namespace_;
     while (ns!=nullptr)
@@ -71,7 +71,7 @@ Class SymbolTable::getClass(const VarType& t)
     return {};
 }
 
-VarType SymbolTable::getClassMemberType(const VarType& classType, const std::string& memberName)
+VarType SymbolTable::getClassMemberType(const std::string& classType, const std::string& memberName)
 {
     auto c = getClass(classType);
     for(auto& v:c.memberVariables)
@@ -81,7 +81,7 @@ VarType SymbolTable::getClassMemberType(const VarType& classType, const std::str
     return VarType("");
 }
 
-int SymbolTable::getClassMemberIndex(const VarType& className, const std::string& memberName)
+int SymbolTable::getClassMemberIndex(const std::string& className, const std::string& memberName)
 {
     auto c = getClass(className);
     for(auto it=c.memberVariables.begin();it!=c.memberVariables.end();++it)
@@ -125,10 +125,10 @@ const std::vector<Function>* SymbolTable::getRawFunction_(const std::string& nam
 
 void SymbolTable::addClassTemplate(ClassTemplate template_)
 {
-    cur_namespace_->classTemplate[template_.type] = std::move(template_);
+    cur_namespace_->classTemplate[template_.type.typeName] = std::move(template_);
 }
 
-ClassTemplate SymbolTable::getClassTemplate(VarType name)
+ClassTemplate SymbolTable::getClassTemplate(std::string name)
 {
     auto cur = cur_namespace_;
     while (cur != nullptr) {
@@ -139,7 +139,42 @@ ClassTemplate SymbolTable::getClassTemplate(VarType name)
     return {};
 }
 
-ClassTemplate SymbolTable::getClassTemplate_(VarType name, NamespaceHelper* ns)
+ClassTemplate SymbolTable::getClassTemplate_(std::string name, NamespaceHelper* ns)
 {
     return ns->classTemplate[name];
+}
+
+VarType SymbolTable::getVarType(VarType type)
+{
+    if (is_builtin_type(type.typeName)) return type;
+    auto cur = cur_namespace_;
+    while (cur != nullptr) {
+        auto v = cur->alias[type];
+        if (v.typeName != "") return v;
+        cur = cur->lastNS;
+    }
+    return type;
+}
+
+void SymbolTable::setAlias(VarType newType, VarType oldType)
+{
+    cur_namespace_->alias[newType] = oldType;
+}
+
+
+std::string SymbolTable::getMangledClassName(VarType type)
+{
+    auto v = getVarType(type);
+    if (v.typeName != "") type=v;
+    if (is_builtin_type(type.typeName)) return type.typeName;
+    auto name = VarType::mangle(type);
+    auto c = getClass(name);
+    if (c.type.typeName != "") return name;
+    if(type.templateArgs.size()!=0)
+    {
+        auto t = getClassTemplate(type.typeName);
+        parser_.InstantiateTemplate(type,t);
+        return name;
+    }
+    return "";
 }

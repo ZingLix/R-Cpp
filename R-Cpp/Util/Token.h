@@ -63,7 +63,11 @@ struct Token
 {
     Token(TokenType t, std::string s) :type(t), content(s) {}
     Token(TokenType t) :type(t), content() {}
-
+    Token(const Token& other)
+    {
+        type = other.type;
+        content = other.content;
+    }
     TokenType type;
     std::string content;
 };

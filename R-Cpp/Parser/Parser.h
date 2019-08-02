@@ -10,8 +10,8 @@ namespace Parse {
     {
     public:
         Parser(const std::string& filename) :lexer_(filename),
-            cur_token_(lexer_.nextToken()),
-            symbol_(std::make_shared<Parse::SymbolTable>()),
+            cur_token_(lexer_.nextToken()),cur_token_bak(cur_token_),
+            symbol_(std::make_shared<Parse::SymbolTable>(*this)),
             isExternal(false) {
         }
 
@@ -49,7 +49,7 @@ namespace Parse {
         void ParseUsing();
         void ParseTemplateClass();
 
-        Class InstantiateTemplate(VarType name, std::vector<VarType> argList);
+        Class InstantiateTemplate(VarType type, const ClassTemplate& template_);
 
     private:
         Token& getNextToken();
@@ -61,17 +61,20 @@ namespace Parse {
         VarType ParseType();
         Function generateFunction_new(const VarType& t);
         bool isPostOperator();
-        void setExtraTokenStream(std::vector<Token>&& tokens) {
+        void setExtraTokenStream(std::vector<Token> tokens) {
+            cur_token_bak = cur_token_;
             extra_token_stream_index_ = 0;
             extra_token_stream_ = std::move(tokens);
+            cur_token_ = extra_token_stream_[0];
         }
 
         void unsetExtraTokenStream() {
             extra_token_stream_.clear();
+            cur_token_ = cur_token_bak;
         }
 
         Lexer lexer_;
-        Token cur_token_;
+        Token cur_token_,cur_token_bak;
         std::vector<Token> extra_token_stream_;
         size_t extra_token_stream_index_;
         std::vector<std::unique_ptr<PrototypeAST>> proto_;

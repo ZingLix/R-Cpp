@@ -33,6 +33,7 @@ bool VarType::operator<(const VarType& other) const
             while (i < templateArgs.size()) {
                 if (templateArgs[i] != other.templateArgs[i])
                     return templateArgs[i]<other.templateArgs[i];
+                ++i;
             }
             return false;
         }

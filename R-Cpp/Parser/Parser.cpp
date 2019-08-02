@@ -253,36 +253,27 @@ std::unique_ptr<ExprAST> Parse::Parser::ParseVariableDefinition(const std::strin
     auto varname = cur_token_.content;
     auto type = VarType(type_name);
     type.templateArgs = template_args;
-    auto c = symbol_->getClass(type);
-    if (c.type.typeName == "") {
-        if(type_name=="__arr")
-        {
-            if(template_args.size()!=2)
-            {
-                error("Invalid count of arguments for Arr.");
-                return nullptr;
-            }
+    type.typeName = symbol_->getMangledClassName(type);
 
-        }else if(type_name=="__ptr")
-        {
-            if(template_args.size()!=1)
-            {
-                error("Invalid count of arguments for __ptr.");
-                return nullptr;
-            }
-        }
-        else if (template_args.size() != 0)
-        {
-            c.type= InstantiateTemplate(type, type.templateArgs).type;
-        }else if(!is_builtin_type(type_name))
-        {
-            error("No type named " + type_name + ".");
+    if (type_name == "__arr") {
+        if (template_args.size() != 2) {
+            error("Invalid count of arguments for Arr.");
             return nullptr;
         }
+
+    } else if (type_name == "__ptr") {
+        if (template_args.size() != 1) {
+            error("Invalid count of arguments for __ptr.");
+            return nullptr;
+        }
+    } else if (type.typeName == "") {
+        error("No type named " + type_name + ".");
+        return nullptr;
     }
+
     symbol_->setValue(varname, Variable(varname, type));
     getNextToken();
-    auto expr = std::make_unique<VariableDefAST>(::VarType::mangle(type), varname);
+    auto expr = std::make_unique<VariableDefAST>(type.typeName, varname);
     if(type_name =="__arr"||type_name=="__ptr")
     {
         std::vector<std::string> tempargs;
@@ -593,7 +584,7 @@ std::unique_ptr<ExprAST> Parse::Parser::ParseIfExpr() {
             return {};
         }
         retType = ParseType();
-        if(!symbol_->hasType(retType))
+        if(!symbol_->hasType(retType.typeName))
         {
             error("Unknown return type " + retType.typeName + ".");
         }
@@ -778,6 +769,9 @@ void Parse::Parser::MainLoop() {
         case TokenType::Using:
             ParseUsing();
             break;
+        case TokenType::lAngle:
+            ParseTemplateClass();
+            break;
         default:
             getNextToken();
             //    HandleTopLevelExpression();
@@ -793,7 +787,7 @@ std::vector<std::unique_ptr<FunctionAST>>& Parse::Parser::AST() {
 Token& Parse::Parser::getNextToken() {
     if(extra_token_stream_.size()==0)
         return cur_token_ = lexer_.nextToken();
-    return extra_token_stream_[extra_token_stream_index_++];
+    return cur_token_ = extra_token_stream_[++extra_token_stream_index_];
 }
 
 void Parse::Parser::error(const std::string& errmsg)
@@ -878,7 +872,7 @@ VarType Parse::Parser::ParseType()
     {
         type.templateArgs = ParseAngleExprList();
     }
-    return VarType(type);
+    return symbol_->getVarType(type);
 }
 
 std::unique_ptr<ExprAST> Parse::Parser::ParseMemberAccess(std::unique_ptr<ExprAST> lhs,OperatorType Op)
@@ -890,7 +884,7 @@ std::unique_ptr<ExprAST> Parse::Parser::ParseMemberAccess(std::unique_ptr<ExprAS
     {
         Function F;
         auto args = ParseParenExprList();
-        for (auto& f : symbol_->getClass(type).memberFunctions) {
+        for (auto& f : symbol_->getClass(type.typeName).memberFunctions) {
             if (f.name == name&&f.args.size()==args.size()) {
                 size_t i = 0;
                 bool flag = true;
@@ -919,7 +913,7 @@ std::unique_ptr<ExprAST> Parse::Parser::ParseMemberAccess(std::unique_ptr<ExprAS
     {
         VarType retType;
         int i = 0;
-        for(auto& m:symbol_->getClass(type).memberVariables)
+        for(auto& m:symbol_->getClass(type.typeName).memberVariables)
         {
             if(m.name==name)
             {
@@ -978,10 +972,11 @@ void Parse::Parser::ParseTemplateClass()
         auto type = ParseType();
         auto name = cur_token_.content;
         getNextToken();
+        typelist.emplace_back(type, name);
         if (cur_token_.type == TokenType::Comma) getNextToken();
     }
     getNextToken();  // eat >
-    if(cur_token_.content=="class")
+    if(cur_token_.type==TokenType::Class)
     {
         std::vector<Token> tokenStream;
         tokenStream.push_back(cur_token_);
@@ -1000,12 +995,12 @@ void Parse::Parser::ParseTemplateClass()
             return;
         }
         tokenStream.push_back(cur_token_);
-        getNextToken();
+       // getNextToken();
         int i = 1;
         while (true)
         {
-            tokenStream.push_back(cur_token_);
             getNextToken();
+            tokenStream.push_back(cur_token_);
             if (cur_token_.type == TokenType::lBrace) ++i;
             if (cur_token_.type == TokenType::rBrace) --i;
             if (i == 0) break;
@@ -1040,37 +1035,34 @@ void Parse::Parser::ParseUsing()
     }
     getNextToken();  // eat =
     auto oldType = ParseType();
-    auto c = symbol_->getClass(oldType);
+    auto c = symbol_->getClass(VarType::mangle(oldType));
     if(c.type.typeName=="")
     {
         error("Unknown type.");
         return;
     }
-    symbol_->addClass(VarType(newType), c);
+    symbol_->setAlias(VarType(newType), c.type);
 }
 
-Class Parse::Parser::InstantiateTemplate(VarType type, std::vector<VarType> argList)
+Class Parse::Parser::InstantiateTemplate(VarType type,const ClassTemplate& template_)
 {
-    auto template_ = symbol_->getClassTemplate(type);
-    type.templateArgs = argList;
-
-    setExtraTokenStream(std::move(template_.token));
-    SymbolTable::NamespaceGuard guard(*symbol_,"");
-    if(argList.size()!=template_.typeList.size())
+    setExtraTokenStream(template_.token);
+    //SymbolTable::NamespaceGuard guard(*symbol_,"");
+    if(type.templateArgs.size()!=template_.typeList.size())
     {
         error("Type arguments amount mismatch.");
         return {};
     }
     for(size_t i = 0;i<template_.typeList.size();++i)
     {
-        symbol_->addClass(VarType(template_.typeList[i].second), symbol_->getClass(argList[i]));
+        symbol_->setAlias(VarType(template_.typeList[i].second), type.templateArgs[i]);
     }
     
     auto c = ParseClass(::VarType::mangle(type));
     if (c == nullptr) return {};
     class_.push_back(std::move(c));
     //Class class_(type);
-
+    unsetExtraTokenStream();
     return Class(type);
     
    

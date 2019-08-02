@@ -78,7 +78,7 @@ VariableDefAST::VariableDefAST(const std::string& type, const std::string& var_n
 
 llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
     llvm::AllocaInst* alloc;
-    if(type_=="Arr")
+    if(type_=="__arr")
     {
         auto elementType = cg.symbol().getType(templateArgs[0]);// get_type(type_.templateArgs[0], cg);
         auto size = std::stoi(templateArgs[1]);

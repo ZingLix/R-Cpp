@@ -25,15 +25,18 @@ namespace Parse {
         std::map<std::string, std::unique_ptr<NamespaceHelper>> nextNS;
         std::vector<NamespaceHelper*> insertedNS;
         std::map<std::string, std::vector<Function>> namedFunction;
-        std::map<VarType, Class> namedClass;
-        std::map<VarType, ClassTemplate> classTemplate;
+        std::map<std::string, Class> namedClass;
+        std::map<std::string, ClassTemplate> classTemplate;
+        std::map<VarType, VarType> alias;
         NamespaceHelper* lastNS;
     };
+
+    class Parser;
 
     class SymbolTable
     {
     public:
-        SymbolTable();
+        SymbolTable(Parser& p);
         void createScope();
         void destroyScope();
         void createNamespace(const std::string& name);
@@ -41,16 +44,19 @@ namespace Parse {
 
         Variable getValue(const std::string& name);
         void setValue(const std::string& name, Variable val);
-        bool hasType(const VarType& name);
-        void addClass(const VarType& name, Class c);
-        Class getClass(const VarType& name);
-        VarType getClassMemberType(const VarType& classType, const std::string& memberName);
-        int getClassMemberIndex(const VarType& classType, const std::string& memberName);
+        bool hasType(const std::string& name);
+        void addClass(const std::string& name, Class c);
+        Class getClass(const std::string& name);
+        VarType getClassMemberType(const std::string& classType, const std::string& memberName);
+        int getClassMemberIndex(const std::string& classType, const std::string& memberName);
         void addFunction(const ::Function& func);
         const std::vector<::Function>* getFunction(const std::string& name, const std::vector<std::string>& ns_hierarchy = {});
         const std::vector<std::string>& getNamespaceHierachy();
         void addClassTemplate(ClassTemplate template_);
-        ClassTemplate getClassTemplate(VarType name);
+        ClassTemplate getClassTemplate(std::string name);
+        std::string getMangledClassName(VarType type);
+        VarType getVarType(VarType type);
+        void setAlias(VarType newType, VarType oldType);
 
         class ScopeGuard
         {
@@ -84,8 +90,9 @@ namespace Parse {
         };
     private:
         const std::vector<Function>* getRawFunction_(const std::string& name, const std::vector<std::string>& ns_hierarchy, NamespaceHelper* ns);
-        ClassTemplate getClassTemplate_(VarType name, NamespaceHelper* ns);
+        ClassTemplate getClassTemplate_(std::string name, NamespaceHelper* ns);
 
+        Parser& parser_;
         std::vector<std::map<std::string, Variable>> named_values_;
         NamespaceHelper helper_;
         NamespaceHelper* cur_namespace_;

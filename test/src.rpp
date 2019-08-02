@@ -77,3 +77,38 @@ fn ptr(i32 a,i32 b)->i32{
     p->b=b;
     return p->add();
 }
+
+//Template.basic
+<Any T>
+class Template
+{
+    T i1;
+    fn val() -> i32
+    {
+        return i1.get();
+    }
+}
+
+class A
+{
+    fn get() ->i32{
+        return 1;
+    }
+}
+
+class B
+{
+    fn get()->i32{
+        return 2;
+    }
+}
+
+fn TemplateA()->i32{
+    Template<A> T;
+    return T.val();
+}
+
+fn TemplateB()->i32{
+    Template<B> T;
+    return T.val();
+}

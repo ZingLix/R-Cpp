@@ -106,6 +106,7 @@ void CodeGenerator::generate()
     for(auto& c:parser_.Classes())
     {
         c->generateCode(*this)->print(llvm::errs());
+        std::cout << std::endl;
     }
     for(auto& p:parser_.Prototypes())
     {
