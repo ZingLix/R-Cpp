@@ -1,5 +1,7 @@
 # R-Cpp
 
+[![Build Status](https://travis-ci.com/ZingLix/R-Cpp.svg?branch=master)](https://travis-ci.com/ZingLix/R-Cpp)
+
 C++ is awesome, but it has too many disadvantages inherited from C. Abandoning C is totally impossible for C++ now. Therefore, this project was born. I want to design a completely new programming language which is still as powerful as C++ but simpler and easier.
 
 You can consider R-Cpp as Cpp Reborn or Cpp Remake whatever. The final name is not determined, so if you have any good idea, contact me.

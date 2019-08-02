@@ -1,0 +1,31 @@
+language: cpp
+sudo: required
+dist: bionic
+
+matrix:
+  include:
+    - os: linux
+      compiler: clang
+      addons:
+        apt:
+          sources: ['ubuntu-toolchain-r-test', 'llvm-toolchain-bionic-8']
+          packages: ['g++-8']
+      env:
+        - CXX=clang++-8
+        - COMPILER=clang++-8
+        - MATRIX_EVAL="CC=clang-8 && CXX=clang++-8"
+
+
+install:
+ - eval "${MATRIX_EVAL}"
+ - sudo apt-get -qq update
+ - sudo apt-get install -y libgtest-dev cmake libllvm-8-ocaml-dev libllvm8 llvm-8 llvm-8-dev llvm-8-doc llvm-8-examples llvm-8-runtime
+ - sudo apt-get install clang-8 clang-tools-8 clang-8-doc libclang-common-8-dev libclang-8-dev libclang1-8 clang-format-8 python-clang-8
+ - cd "${TRAVIS_BUILD_DIR}"
+
+script:
+ - cmake .
+ - make
+
+notifications:
+  email: false
