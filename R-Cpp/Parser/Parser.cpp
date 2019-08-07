@@ -149,7 +149,7 @@ std::unique_ptr<ExprAST> Parse::Parser::ParseIdentifierExpr() {
     getNextToken();
     // is defining a identifier
  //   if (cur_token_.type_llvm == TokenType::Identifier||cur_token_.type_llvm==TokenType::lAngle) {
-    if(symbol_->hasType(idname)&&(cur_token_.type == TokenType::Identifier || cur_token_.type == TokenType::lAngle)){
+    if(symbol_->hasType(idname)&&(cur_token_.type == TokenType::Identifier || cur_token_.type == TokenType::lAngle || cur_token_.type==TokenType::lParenthesis)){
         return ParseVariableDefinition(idname);
     }
     if(cur_token_.type==TokenType::Colon)
@@ -167,25 +167,8 @@ std::unique_ptr<ExprAST> Parse::Parser::ParseIdentifierExpr() {
         return std::make_unique<VariableExprAST>(idname,var.type);;
     }
     // is calling a function
-    getNextToken();      // eat (
-    std::vector<std::unique_ptr<ExprAST>> args;
-    if (cur_token_.type != TokenType::rParenthesis) {
-        while (true) {
-            if (auto arg = ParseExpression()) {
-                args.push_back(std::move(arg));
-            } else {
-                return nullptr;
-            }
-            if (cur_token_.type == TokenType::rParenthesis) break;
-            if (cur_token_.type != TokenType::Comma)
-            {
-                error("Expected , or ).");
-                return nullptr;
-            }
-            getNextToken();
-        }
-    }
-    getNextToken();
+    assert(cur_token_.type == TokenType::lParenthesis);
+    auto args = ParseParenExprList();
     auto fnList = symbol_->getFunction(idname,cur_namespace_);
     Function target;
     for(auto&f:*fnList)
@@ -250,50 +233,84 @@ std::unique_ptr<ExprAST> Parse::Parser::ParseVariableDefinition(const std::strin
     {
         template_args = ParseAngleExprList();
     }
-    auto varname = cur_token_.content;
     auto type = VarType(type_name);
     type.templateArgs = template_args;
     type.typeName = symbol_->getMangledClassName(type);
+    if(cur_token_.type==TokenType::Identifier)
+    {   // like 'int p=0'
+        auto varname = cur_token_.content;
+        if (type_name == "__arr") {
+            if (template_args.size() != 2) {
+                error("Invalid count of arguments for Arr.");
+                return nullptr;
+            }
 
-    if (type_name == "__arr") {
-        if (template_args.size() != 2) {
-            error("Invalid count of arguments for Arr.");
+        } else if (type_name == "__ptr") {
+            if (template_args.size() != 1) {
+                error("Invalid count of arguments for __ptr.");
+                return nullptr;
+            }
+        } else if (type.typeName == "") {
+            error("No type named " + type_name + ".");
             return nullptr;
         }
-
-    } else if (type_name == "__ptr") {
-        if (template_args.size() != 1) {
-            error("Invalid count of arguments for __ptr.");
+        symbol_->setValue(varname, Variable(varname, type));
+        getNextToken();
+        auto expr = std::make_unique<VariableDefAST>(type.typeName, varname);
+        if (type_name == "__arr" || type_name == "__ptr") {
+            std::vector<std::string> tempargs;
+            for (auto& v : type.templateArgs) {
+                tempargs.push_back(::VarType::mangle(v));
+            }
+            expr->setTemplateArgs(tempargs);
+        }
+        if (cur_token_.type == TokenType::Equal) {
+            // definition with initiate value
+            getNextToken();   // eat =
+            auto E = ParseExpression();
+            expr->setInitValue(std::move(E));
+        } else if (cur_token_.type != TokenType::Semicolon) {
+            error("Expected initiate value or ;.");
             return nullptr;
         }
-    } else if (type.typeName == "") {
-        error("No type named " + type_name + ".");
-        return nullptr;
-    }
-
-    symbol_->setValue(varname, Variable(varname, type));
-    getNextToken();
-    auto expr = std::make_unique<VariableDefAST>(type.typeName, varname);
-    if(type_name =="__arr"||type_name=="__ptr")
-    {
-        std::vector<std::string> tempargs;
-        for(auto&v :type.templateArgs)
+        return expr;
+    }else
+    {   // like 'Var(10)'
+        assert(cur_token_.type == TokenType::lParenthesis);
+        auto args = ParseParenExprList();
+        auto clas = symbolTable()->getClass(::VarType::mangle(type));
+        if(clas.type.typeName=="")
         {
-            tempargs.push_back(::VarType::mangle(v));
+            error("No class named " + type.typeName);
         }
-        expr->setTemplateArgs(tempargs);
+        Function  target;
+        for(auto& f:clas.constructors)
+        {
+            if(f.args.size()==args.size())
+            {
+                bool flag = true;
+                for (size_t i = 0; i < f.args.size(); ++i) {
+                    if (f.args[i].type != args[i]->getType()) {
+                        flag = false;
+                        break;
+                    }
+                }
+                if (flag) {
+                    target = f;
+                    break;
+                }
+            }
+        }
+        if(target.name=="")
+        {
+            error("No suitable constructor.");
+            return nullptr;
+        }
+        std::vector<std::unique_ptr<ExprAST>> exprlist;
+        std::string varname = "__" + std::to_string(nameless_var_count_++)+"tmp_";
+        return std::make_unique<NamelessVarExprAST>(varname, ::VarType::mangle(type), target.mangledName(), std::move(args));
     }
-    if (cur_token_.type == TokenType::Equal) {
-        // definition with initiate value
-        getNextToken();   // eat =
-        auto E = ParseExpression();
-        expr->setInitValue(std::move(E));
-    }
-    else if (cur_token_.type != TokenType::Semicolon) {
-        error("Expected initiate value or ;.");
-        return nullptr;
-    }
-    return expr;
+
 }
 
 std::unique_ptr<ExprAST> Parse::Parser::ParseReturnExpr() {
@@ -687,8 +704,9 @@ std::unique_ptr<ClassAST> Parse::Parser::ParseClass(std::string className)
         error("Expected class name.");
         return nullptr;
     }
+    auto basename = cur_token_.content;
     if(className=="")
-        className = cur_token_.content;
+        className = basename;
     Class c(className);
     getNextToken();
     if (cur_token_.type != TokenType::lBrace) {
@@ -703,15 +721,54 @@ std::unique_ptr<ClassAST> Parse::Parser::ParseClass(std::string className)
         cur_class_ = c.type;
         while (cur_token_.type != TokenType::rBrace) {
             if (cur_token_.type == TokenType::Identifier) {
-                auto type = ParseType();
-                auto name = cur_token_.content;
-                getNextToken();
-                if (name=="") {
-                    error("Invalid declaration.");
-                    return nullptr;
+                if(cur_token_.content==basename && lexer_.nextChar()=='(')
+                {
+                    getNextToken();
+                    std::vector<Variable> ArgNames;
+                    getNextToken();
+                    while (cur_token_.type != TokenType::rParenthesis) {
+                        auto type = ParseType();
+                        // getNextToken();
+                        ArgNames.emplace_back(Variable(cur_token_.content, type));
+                        getNextToken();
+                        if (cur_token_.type == TokenType::rParenthesis) break;
+                        if (cur_token_.type != TokenType::Comma) {
+                            error("Expected , to split arguments.");
+                            return {};
+                        }
+                        getNextToken();
+                    }
+                    getNextToken();
+                    SymbolTable::ScopeGuard argGuard(*symbol_);
+                    for(auto&v :ArgNames)
+                    {
+                        symbol_->setValue(v.name, v);
+                    }
+                    auto b = ParseBlock();
+                    Function f("__construct", ArgNames, VarType("void"),isExternal);
+                    f.classType = c.type;
+                    std::vector<std::pair<std::string, std::string>> argList;
+                    for(auto&v:ArgNames)
+                    {
+                        argList.emplace_back(::VarType::mangle(v.type), v.name);
+                    }
+                    auto P = std::make_unique<PrototypeAST>(::Function::mangle(f), std::move(argList), "void");
+                    P->setClassType(className);
+                    auto F = std::make_unique<FunctionAST>(::Function::mangle(f), std::move(b), className);
+                    proto_.push_back(std::move(P));
+                    expr_.push_back(std::move(F));
+                    c.constructors.push_back(f);
+                } else {
+                    auto type = ParseType();
+                    auto name = cur_token_.content;
+                    getNextToken();
+                    if (name == "") {
+                        error("Invalid declaration.");
+                        return nullptr;
+                    }
+                    symbol_->setValue(name, Variable(name, type));
+                    c.memberVariables.emplace_back(name, type);
                 }
-                symbol_->setValue(name, Variable(name, type));
-                c.memberVariables.emplace_back(name, type);
             } else if (cur_token_.type == TokenType::Function) {
                 auto fn = ParseFunction();
                 //Function f(proto_.back()->getFunction());

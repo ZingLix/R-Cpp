@@ -62,12 +62,27 @@ public:
 
 private:
     std::string name;
+
 };
 
-class BlockExprAST
+class NamelessVarExprAST:public ExprAST,public AllocAST
 {
 public:
-    BlockExprAST(std::vector<std::unique_ptr<ExprAST>> expr) :expr_(std::move(expr)) {}
+    NamelessVarExprAST(const std::string Name,const VarType& Type, const std::string& Constructor,std::vector<std::unique_ptr<ExprAST>> Args)
+        :ExprAST(Type), name(Name),constructor(Constructor),args(std::move(Args))
+    { }
+    llvm::Value* generateCode(CG::CodeGenerator& cg) override;
+private:
+    std::string name;
+    std::string constructor;
+    std::vector<std::unique_ptr<ExprAST>> args;
+};
+
+class BlockExprAST :public ExprAST
+{
+public:
+    BlockExprAST(std::vector<std::unique_ptr<ExprAST>> expr,const VarType& t=VarType("void"))
+        :ExprAST(t), expr_(std::move(expr)) {}
     llvm::Value* generateCode(CG::CodeGenerator& cg);
     std::vector<std::unique_ptr<ExprAST>>& instructions();
 

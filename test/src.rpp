@@ -21,11 +21,16 @@ fn precedence()->i32{
     return 3*4+8*5+10;
 }
 
-// Class.memberFunction
+// Class
 class c
 {
     i32 a;
     i32 b;
+    c(i32 x, i32 y){
+        a=x;
+        b=y;
+    }
+
     fn add() -> i32
     {
         return a+b;
@@ -43,6 +48,7 @@ class d
     }
 }
 
+// Class.memberFunction
 fn classMemberFunction(i32 a)->i32
 {
     d v;
@@ -50,6 +56,18 @@ fn classMemberFunction(i32 a)->i32
     v.x.b=10;
     v.y=2*v.x.add();
     return v.func();
+}
+
+// Class.constructor
+fn classConstructor1()->i32
+{
+    return c(3,4).a;
+}
+
+fn classConstructor2(i32 a,i32 b)->i32
+{
+    c tmp = c(a,b);
+    return tmp.add();
 }
 
 //Array.basic

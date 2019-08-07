@@ -49,6 +49,10 @@ struct Function
     }
 
     static std::string mangle(const Function& F);
+    std::string mangledName()
+    {
+        return mangle(*this);
+    }
 private:
     static std::string mangle(const VarType& type);
     static std::string mangle(const std::string& name);
@@ -72,6 +76,7 @@ struct Class
     VarType type;
     std::vector<Variable> memberVariables;
     std::vector<::Function> memberFunctions;
+    std::vector<::Function> constructors;
 };
 
 llvm::Type* get_builtin_type(const std::string& s, CG::CodeGenerator& cg);

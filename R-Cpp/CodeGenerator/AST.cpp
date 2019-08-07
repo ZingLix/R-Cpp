@@ -205,9 +205,9 @@ void CallExprAST::setThis(std::unique_ptr<ExprAST> This)
 llvm::Value* BlockExprAST::generateCode(CodeGenerator& cg) {
     Value* ret = nullptr;
     for(auto&s:expr_) {
-        auto v= s->generateCode(cg);
-        if (ret == nullptr) ret = v;
-        if (!v)
+        ret= s->generateCode(cg);
+        //if (ret == nullptr) ret = v;
+        if (!ret)
             return nullptr;
     }
     return ret;
@@ -421,10 +421,10 @@ MemberAccessAST::MemberAccessAST(std::unique_ptr<ExprAST> Var, int index,
 
 llvm::Value* MemberAccessAST::generateCode(CodeGenerator& cg)
 {
-    var->generateCode(cg);
+    Value* data = var->generateCode(cg);
     alloca_ = dynamic_cast<AllocAST*>(var.get())->getAlloc();
     Value* index = ConstantInt::get(cg.context(), APInt(32, memberIndex));
-    Value* data = var->generateCode(cg);
+
     std::vector<llvm::Value*> indices(2);
     indices[0] = llvm::ConstantInt::get(cg.context(), llvm::APInt(32, 0, true));
     indices[1] = index;
@@ -502,4 +502,15 @@ llvm::Value* NamespaceExprAST::generateCode(CodeGenerator& cg) {
 llvm::Value* NonExprAST::generateCode(CG::CodeGenerator& cg)
 {
     return llvm::Constant::getNullValue(llvm::Type::getVoidTy(cg.context()));
+}
+
+llvm::Value* NamelessVarExprAST::generateCode(CG::CodeGenerator& cg)
+{
+    auto allocVar = std::make_unique<VariableDefAST>(::VarType::mangle(type),name);
+    allocVar->generateCode(cg);
+    alloca_ = cg.symbol().getAlloc(name);
+    auto callConsturutor = std::make_unique<CallExprAST>(constructor, std::move(args), type);
+    callConsturutor->setThis(std::make_unique<VariableExprAST>(name, type));
+    callConsturutor->generateCode(cg);
+    return std::make_unique<VariableExprAST>(name, type)->generateCode(cg);
 }

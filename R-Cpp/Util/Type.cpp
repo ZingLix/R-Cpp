@@ -12,6 +12,7 @@ bool VarType::operator==(const VarType& other) const
             {
                 if (templateArgs[i] != other.templateArgs[i])
                     return false;
+                ++i;
             }
             return true;
         }

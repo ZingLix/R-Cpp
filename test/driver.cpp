@@ -9,6 +9,8 @@ extern "C"{
     int _R3ptrI3i32I3i32(int,int);
     int _R9TemplateA();
     int _R9TemplateB();
+    int _R17classConstructor1();
+    int _R17classConstructor2I3i32I3i32(int,int);
 }
 
 int fibonacci(int i){
@@ -25,6 +27,14 @@ int precedence(){
 
 int classMemberFunction(int i){
     return _R19classMemberFunctionI3i32(i);
+}
+
+int classConstructor1(){
+    return _R17classConstructor1();
+}
+
+int classConstructor2(int a,int b){
+    return _R17classConstructor2I3i32I3i32(a,b);
 }
 
 int array(int i){
@@ -88,6 +98,12 @@ TEST(CLASS, memberFunction){
     for(int i=2;i<10;++i){
         EXPECT_EQ(classMemberFunction(i),2*(10+i)*(10+i));
     }
+}
+
+TEST(CLASS,constructor){
+    EXPECT_EQ(classConstructor1(),3);
+    EXPECT_EQ(classConstructor2(1,5),6);
+    EXPECT_EQ(classConstructor2(12,35),47);
 }
 
 TEST(ARRAY, basic){

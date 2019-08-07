@@ -12,7 +12,7 @@ namespace Parse {
         Parser(const std::string& filename) :lexer_(filename),
             cur_token_(lexer_.nextToken()),cur_token_bak(cur_token_),
             symbol_(std::make_shared<Parse::SymbolTable>(*this)),
-            isExternal(false) {
+            isExternal(false),nameless_var_count_(0) {
         }
 
         std::unique_ptr<ExprAST> ParsePrimary();
@@ -84,5 +84,6 @@ namespace Parse {
         std::vector<std::string> cur_namespace_;
         VarType cur_class_;
         bool isExternal;
+        int32_t nameless_var_count_;
     };
 }
