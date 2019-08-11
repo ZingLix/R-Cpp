@@ -131,6 +131,8 @@ constexpr TokenType charToToken(char c)
         return TokenType::DoubleQuote;
     case '?':
         return TokenType::Question;
+    case '~':
+        return TokenType::Tilde;
     default:
         return TokenType::Unknown;
     }

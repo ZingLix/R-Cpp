@@ -77,6 +77,7 @@ struct Class
     std::vector<Variable> memberVariables;
     std::vector<::Function> memberFunctions;
     std::vector<::Function> constructors;
+    ::Function destructor;
 };
 
 llvm::Type* get_builtin_type(const std::string& s, CG::CodeGenerator& cg);

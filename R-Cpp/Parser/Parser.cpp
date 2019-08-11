@@ -224,6 +224,7 @@ std::unique_ptr<ExprAST> Parse::Parser::ParseForExpr() {
     }
     getNextToken(); //eat )
     auto body = ParseBlock();
+    sg.setBlock(body.get());
     return std::make_unique<ForExprAST>(std::move(start), std::move(cond), std::move(end), std::move(body));
 }
 
@@ -316,7 +317,7 @@ std::unique_ptr<ExprAST> Parse::Parser::ParseVariableDefinition(const std::strin
 std::unique_ptr<ExprAST> Parse::Parser::ParseReturnExpr() {
     getNextToken();
     auto retval = ParseExpression();
-    if (retval != nullptr) return std::make_unique<ReturnAST>(std::move(retval));
+    if (retval != nullptr) return std::make_unique<ReturnAST>(std::move(retval), symbolTable()->callDestructor());
     getNextToken();
     error("Invalid return value.");
     return nullptr;
@@ -664,23 +665,24 @@ std::unique_ptr<BlockExprAST> Parse::Parser::ParseBlock() {
     auto f = ParsePrototype();
     if (f.name=="") return {};
     auto name = ::Function::mangle(f);
-    SymbolTable::ScopeGuard sg(*symbol_);
-    for(auto it:f.args)
+    std::unique_ptr<BlockExprAST> body;
     {
-        symbol_->setValue(it.name, Variable(it.name, it.type));
-    }
-    if(cur_token_.type==TokenType::Semicolon)
-    {
-        getNextToken();
-        return f;
-    }
-    if (cur_token_.type != TokenType::lBrace) {
-        error("Expected { or ;.");
-        return {};
-    }
-    auto body = ParseBlock();
-    if (!body) {
-        return {};
+        SymbolTable::ScopeGuard sg(*symbol_);
+        for (auto it : f.args) {
+            symbol_->setValue(it.name, Variable(it.name, it.type));
+        }
+        if (cur_token_.type == TokenType::Semicolon) {
+            getNextToken();
+            return f;
+        }
+        if (cur_token_.type != TokenType::lBrace) {
+            error("Expected { or ;.");
+            return {};
+        }
+        body = ParseBlock();
+        if (!body) {
+            return {};
+        }
     }
     expr_.push_back(std::make_unique<FunctionAST>(name, std::move(body),::VarType::mangle(f.classType)));
     return f;
@@ -722,7 +724,7 @@ std::unique_ptr<ClassAST> Parse::Parser::ParseClass(std::string className)
         while (cur_token_.type != TokenType::rBrace) {
             if (cur_token_.type == TokenType::Identifier) {
                 if(cur_token_.content==basename && lexer_.nextChar()=='(')
-                {
+                {   // parsing constructor
                     getNextToken();
                     std::vector<Variable> ArgNames;
                     getNextToken();
@@ -739,12 +741,15 @@ std::unique_ptr<ClassAST> Parse::Parser::ParseClass(std::string className)
                         getNextToken();
                     }
                     getNextToken();
-                    SymbolTable::ScopeGuard argGuard(*symbol_);
-                    for(auto&v :ArgNames)
+                    std::unique_ptr<BlockExprAST> b;
                     {
-                        symbol_->setValue(v.name, v);
+                        SymbolTable::ScopeGuard argGuard(*symbol_);
+                        for (auto& v : ArgNames) {
+                            symbol_->setValue(v.name, v);
+                        }
+                        b = ParseBlock();
+                        argGuard.setBlock(b.get());
                     }
-                    auto b = ParseBlock();
                     Function f("__construct", ArgNames, VarType("void"),isExternal);
                     f.classType = c.type;
                     std::vector<std::pair<std::string, std::string>> argList;
@@ -758,7 +763,9 @@ std::unique_ptr<ClassAST> Parse::Parser::ParseClass(std::string className)
                     proto_.push_back(std::move(P));
                     expr_.push_back(std::move(F));
                     c.constructors.push_back(f);
-                } else {
+                }
+                else 
+                {   // parsing member variable
                     auto type = ParseType();
                     auto name = cur_token_.content;
                     getNextToken();
@@ -770,17 +777,37 @@ std::unique_ptr<ClassAST> Parse::Parser::ParseClass(std::string className)
                     c.memberVariables.emplace_back(name, type);
                 }
             } else if (cur_token_.type == TokenType::Function) {
-                auto fn = ParseFunction();
-                //Function f(proto_.back()->getFunction());
-                c.memberFunctions.push_back(fn);
-                //expr_.push_back(std::move(fn));
-                //symbol_->addFunction(f.name, f);
+                c.memberFunctions.push_back(ParseFunction());
+            } else if (cur_token_.type == TokenType::Tilde) {   // parsing destructor
+                if (getNextToken().type != TokenType::Identifier || cur_token_.content != basename) {
+                    error("Expected classname to identify destructor.");
+                    return nullptr;
+                }
+                getNextToken();
+                auto exprs = ParseParenExprList();
+                if(exprs.size()!=0)
+                {
+                    error("Destructor doesn't take any argument.");
+                    return nullptr;
+                }
+                auto block = ParseBlock();
+                std::vector<Variable> args;
+                Function f("__destructor", args, VarType("void"), false);
+                f.classType = c.type;
+                std::vector<std::pair<std::string, std::string>> argList;
+                auto P = std::make_unique<PrototypeAST>(::Function::mangle(f), argList, "void");
+                P->setClassType(className);
+                auto F = std::make_unique<FunctionAST>(::Function::mangle(f), std::move(block), className);
+                proto_.push_back(std::move(P));
+                expr_.push_back(std::move(F));
+                c.destructor=f;
             }
             if (cur_token_.type == TokenType::Semicolon) getNextToken();
         }
         symbol_->addFunction(generateFunction_new(c.type));
         cur_class_ = tmp;
     }
+    getNextToken();
     symbol_->addClass(className, c);
     std::vector<std::pair<std::string, std::string>> members;
     for(auto&v:c.memberVariables)
@@ -844,7 +871,11 @@ std::vector<std::unique_ptr<FunctionAST>>& Parse::Parser::AST() {
 Token& Parse::Parser::getNextToken() {
     if(extra_token_stream_.size()==0)
         return cur_token_ = lexer_.nextToken();
-    return cur_token_ = extra_token_stream_[++extra_token_stream_index_];
+    if (extra_token_stream_index_ == extra_token_stream_.size() - 1)
+        unsetExtraTokenStream();
+    else
+    cur_token_ = extra_token_stream_[++extra_token_stream_index_];
+    return cur_token_;
 }
 
 void Parse::Parser::error(const std::string& errmsg)
@@ -1121,6 +1152,19 @@ Class Parse::Parser::InstantiateTemplate(VarType type,const ClassTemplate& templ
     //Class class_(type);
     unsetExtraTokenStream();
     return Class(type);
-    
-   
 }
+
+void Parser::generateCallDestructor(BlockExprAST* block)
+{
+    symbolTable()->callDestructor(block);
+}
+
+std::unique_ptr<ExprAST> Parser::callDestructor(const Variable& v)
+{
+    auto destructor = symbolTable()->getClass(::VarType::mangle(v.type)).destructor;
+    auto c = std::make_unique<CallExprAST>(destructor.mangledName(), std::vector<std::unique_ptr<ExprAST>>(), VarType("void"));
+    c->setThis(std::make_unique<VariableExprAST>(v.name,v.type));
+    return c;
+}
+
+

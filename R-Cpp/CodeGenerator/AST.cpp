@@ -157,12 +157,15 @@ llvm::Value* BinaryExprAST::generateCode(CodeGenerator& cg) {
 
 }
 
-ReturnAST::ReturnAST(std::unique_ptr<ExprAST> returnValue):ExprAST(VarType("null")), ret_val_(std::move(returnValue)) 
+ReturnAST::ReturnAST(std::unique_ptr<ExprAST> returnValue, std::vector<std::unique_ptr<ExprAST>> destructorExpr)
+    :ExprAST(VarType("void")), ret_val_(std::move(returnValue)), destructor_expr_(std::move(destructorExpr))
 {
 }
 
 Value* ReturnAST::generateCode(CodeGenerator& cg) {
     auto retval = ret_val_->generateCode(cg);
+    for (auto& expr : destructor_expr_)
+        expr->generateCode(cg);
     if(retval!=nullptr)
         return cg.builder().CreateRet(retval);
     return nullptr;

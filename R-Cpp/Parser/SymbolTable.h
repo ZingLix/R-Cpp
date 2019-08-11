@@ -2,6 +2,8 @@
 #include "../Util/Type.h"
 #include "../Util/Token.h"
 
+class BlockExprAST;
+class ExprAST;
 namespace Parse {
 
     struct ClassTemplate
@@ -57,21 +59,30 @@ namespace Parse {
         std::string getMangledClassName(VarType type);
         VarType getVarType(VarType type);
         void setAlias(VarType newType, VarType oldType);
+        void callDestructor(BlockExprAST* block);
+        std::vector<std::unique_ptr<ExprAST>> callDestructor();
 
         class ScopeGuard
         {
         public:
             ScopeGuard(SymbolTable& st)
-                :st_(st) {
+                :st_(st),block_(nullptr) {
                 st_.createScope();
             }
 
             ~ScopeGuard() {
+                if(block_!=nullptr)
+                    st_.callDestructor(block_);
                 st_.destroyScope();
+            }
+            void setBlock(BlockExprAST* block)
+            {
+                block_ = block;
             }
 
         private:
             SymbolTable& st_;
+            BlockExprAST* block_;
         };
         class NamespaceGuard
         {
@@ -94,6 +105,7 @@ namespace Parse {
 
         Parser& parser_;
         std::vector<std::map<std::string, Variable>> named_values_;
+        std::vector<std::vector<std::string>> named_values_seq_;
         NamespaceHelper helper_;
         NamespaceHelper* cur_namespace_;
         std::vector<std::string> ns_hierarchy_;

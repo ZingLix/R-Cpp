@@ -11,11 +11,13 @@ SymbolTable::SymbolTable(Parser& p):parser_(p), helper_("",nullptr),cur_namespac
 void SymbolTable::createScope()
 {
     named_values_.emplace_back();
+    named_values_seq_.emplace_back();
 }
 
 void SymbolTable::destroyScope()
 {
     named_values_.pop_back();
+    named_values_seq_.pop_back();
 }
 
 void SymbolTable::createNamespace(const std::string& name)
@@ -39,12 +41,13 @@ Variable SymbolTable::getValue(const std::string& name)
         auto t = it->find(name);
         if (t != it->end()) return t->second;
     }
-    return Variable();
+    return {};
 }
 
 void SymbolTable::setValue(const std::string& name, Variable val)
 {
     named_values_.back()[name] = val;
+    named_values_seq_.back().push_back(name);
 }
 
 bool SymbolTable::hasType(const std::string& t) {
@@ -177,4 +180,25 @@ std::string SymbolTable::getMangledClassName(VarType type)
         return name;
     }
     return "";
+}
+
+void SymbolTable::callDestructor(BlockExprAST* block)
+{
+    for(auto it=named_values_seq_.back().rbegin();it!=named_values_seq_.back().rend();++it)
+    {
+        auto& v = named_values_.back()[*it];
+        if(!is_builtin_type(v.type.typeName))
+        block->instructions().push_back(parser_.callDestructor(v));
+    }
+}
+
+std::vector<std::unique_ptr<ExprAST>> SymbolTable::callDestructor()
+{
+    std::vector<std::unique_ptr<ExprAST>> exprs;
+    for (auto it = named_values_seq_.back().rbegin(); it != named_values_seq_.back().rend(); ++it) {
+        auto& v = named_values_.back()[*it];
+        if (!is_builtin_type(v.type.typeName))
+            exprs.push_back(parser_.callDestructor(v));
+    }
+    return exprs;
 }

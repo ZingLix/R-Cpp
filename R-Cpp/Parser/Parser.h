@@ -51,6 +51,9 @@ namespace Parse {
 
         Class InstantiateTemplate(VarType type, const ClassTemplate& template_);
 
+        void generateCallDestructor(BlockExprAST* block);
+        std::unique_ptr<ExprAST> callDestructor(const Variable& var);
+
     private:
         Token& getNextToken();
         OperatorType getNextBinOperator();
@@ -59,7 +62,7 @@ namespace Parse {
         std::unique_ptr<ExprAST> MergeExpr(std::unique_ptr<ExprAST>, std::unique_ptr<ExprAST>, OperatorType);
         std::vector<std::unique_ptr<ExprAST>> ParseExprList(TokenType endToken);
         VarType ParseType();
-        Function generateFunction_new(const VarType& t);
+        ::Function generateFunction_new(const VarType& t);
         bool isPostOperator();
         void setExtraTokenStream(std::vector<Token> tokens) {
             cur_token_bak = cur_token_;

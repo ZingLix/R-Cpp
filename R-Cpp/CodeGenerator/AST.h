@@ -147,11 +147,12 @@ private:
 class ReturnAST:public ExprAST
 {
 public:
-    ReturnAST(std::unique_ptr<ExprAST> returnValue);
+    ReturnAST(std::unique_ptr<ExprAST> returnValue, std::vector<std::unique_ptr<ExprAST>> destructorExpr);
     llvm::Value* generateCode(CG::CodeGenerator& cg) override;
 
 private:
     std::unique_ptr<ExprAST> ret_val_;
+    std::vector<std::unique_ptr<ExprAST>> destructor_expr_;
 };
 
 class BinaryExprAST:public ExprAST
