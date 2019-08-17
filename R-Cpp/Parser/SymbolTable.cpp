@@ -111,7 +111,7 @@ const std::vector<Function>* SymbolTable::getFunction(const std::string& name, c
     return nullptr;
 }
 
-const std::vector<std::string>& SymbolTable::getNamespaceHierachy()
+const std::vector<std::string>& SymbolTable::getNamespaceHierarchy()
 {
     return ns_hierarchy_;
 }
@@ -182,23 +182,54 @@ std::string SymbolTable::getMangledClassName(VarType type)
     return "";
 }
 
-void SymbolTable::callDestructor(BlockExprAST* block)
+void SymbolTable::callDestructorForCurScope(BlockExprAST* block)
 {
-    for(auto it=named_values_seq_.back().rbegin();it!=named_values_seq_.back().rend();++it)
-    {
+    for (auto it = named_values_seq_.back().rbegin(); it != named_values_seq_.back().rend(); ++it) {
         auto& v = named_values_.back()[*it];
-        if(!is_builtin_type(v.type.typeName))
-        block->instructions().push_back(parser_.callDestructor(v));
+        if (!is_builtin_type(v.type.typeName))
+            block->instructions().push_back(parser_.callDestructor(v));
     }
 }
 
 std::vector<std::unique_ptr<ExprAST>> SymbolTable::callDestructor()
 {
     std::vector<std::unique_ptr<ExprAST>> exprs;
-    for (auto it = named_values_seq_.back().rbegin(); it != named_values_seq_.back().rend(); ++it) {
-        auto& v = named_values_.back()[*it];
-        if (!is_builtin_type(v.type.typeName))
-            exprs.push_back(parser_.callDestructor(v));
+    auto valmap = named_values_.rbegin();
+    for (auto scope = named_values_seq_.rbegin();
+        scope != named_values_seq_.rend(); ++scope,++valmap)
+    {
+        for (auto it = scope->rbegin(); it != scope->rend(); ++it) {
+            auto& v = (*valmap)[*it];
+            if (!is_builtin_type(v.type.typeName))
+                exprs.push_back(parser_.callDestructor(v));
+        }
     }
     return exprs;
+}
+
+SymbolTable::ScopeGuard::ScopeGuard(SymbolTable& st): st_(st), block_(nullptr)
+{
+    st_.createScope();
+}
+
+SymbolTable::ScopeGuard::~ScopeGuard()
+{
+    if (block_ != nullptr)
+        st_.callDestructorForCurScope(block_);
+    st_.destroyScope();
+}
+
+void SymbolTable::ScopeGuard::setBlock(BlockExprAST* block)
+{
+    block_ = block;
+}
+
+SymbolTable::NamespaceGuard::NamespaceGuard(SymbolTable& st, const std::string& name): st_(st)
+{
+    st_.createNamespace(name);
+}
+
+SymbolTable::NamespaceGuard::~NamespaceGuard()
+{
+    st_.destroyNamespace();
 }

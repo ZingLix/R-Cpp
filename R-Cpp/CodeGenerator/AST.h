@@ -81,13 +81,14 @@ private:
 class BlockExprAST :public ExprAST
 {
 public:
-    BlockExprAST(std::vector<std::unique_ptr<ExprAST>> expr,const VarType& t=VarType("void"))
-        :ExprAST(t), expr_(std::move(expr)) {}
+    BlockExprAST(std::vector<std::unique_ptr<ExprAST>> expr, bool hasReturnStatement ,const VarType& t=VarType("void"))
+        :ExprAST(t), expr_(std::move(expr)),hasReturn_(hasReturnStatement) {}
     llvm::Value* generateCode(CG::CodeGenerator& cg);
     std::vector<std::unique_ptr<ExprAST>>& instructions();
-
+    bool hasReturn() { return hasReturn_; }
 private:
     std::vector<std::unique_ptr<ExprAST>> expr_;
+    bool hasReturn_;
 };
 
 class IfExprAST :public ExprAST

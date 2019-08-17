@@ -53,55 +53,40 @@ namespace Parse {
         int getClassMemberIndex(const std::string& classType, const std::string& memberName);
         void addFunction(const ::Function& func);
         const std::vector<::Function>* getFunction(const std::string& name, const std::vector<std::string>& ns_hierarchy = {});
-        const std::vector<std::string>& getNamespaceHierachy();
+        const std::vector<std::string>& getNamespaceHierarchy();
         void addClassTemplate(ClassTemplate template_);
         ClassTemplate getClassTemplate(std::string name);
         std::string getMangledClassName(VarType type);
         VarType getVarType(VarType type);
         void setAlias(VarType newType, VarType oldType);
-        void callDestructor(BlockExprAST* block);
         std::vector<std::unique_ptr<ExprAST>> callDestructor();
 
         class ScopeGuard
         {
         public:
-            ScopeGuard(SymbolTable& st)
-                :st_(st),block_(nullptr) {
-                st_.createScope();
-            }
-
-            ~ScopeGuard() {
-                if(block_!=nullptr)
-                    st_.callDestructor(block_);
-                st_.destroyScope();
-            }
-            void setBlock(BlockExprAST* block)
-            {
-                block_ = block;
-            }
+            ScopeGuard(SymbolTable& st);
+            ~ScopeGuard();
+            void setBlock(BlockExprAST* block);
 
         private:
             SymbolTable& st_;
             BlockExprAST* block_;
         };
+
         class NamespaceGuard
         {
         public:
-            NamespaceGuard(SymbolTable& st, const std::string& name)
-                :st_(st) {
-                st_.createNamespace(name);
-            }
-
-            ~NamespaceGuard() {
-                st_.destroyNamespace();
-            }
+            NamespaceGuard(SymbolTable& st, const std::string& name);
+            ~NamespaceGuard();
 
         private:
             SymbolTable& st_;
         };
+
     private:
         const std::vector<Function>* getRawFunction_(const std::string& name, const std::vector<std::string>& ns_hierarchy, NamespaceHelper* ns);
         ClassTemplate getClassTemplate_(std::string name, NamespaceHelper* ns);
+        void callDestructorForCurScope(BlockExprAST* block);
 
         Parser& parser_;
         std::vector<std::map<std::string, Variable>> named_values_;

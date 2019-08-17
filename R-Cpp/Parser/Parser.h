@@ -51,7 +51,6 @@ namespace Parse {
 
         Class InstantiateTemplate(VarType type, const ClassTemplate& template_);
 
-        void generateCallDestructor(BlockExprAST* block);
         std::unique_ptr<ExprAST> callDestructor(const Variable& var);
 
     private:

@@ -631,33 +631,41 @@ std::unique_ptr<ExprAST> Parse::Parser::ParseIfExpr() {
 }
 
 std::unique_ptr<BlockExprAST> Parse::Parser::ParseBlock() {
+    SymbolTable::ScopeGuard guard(*symbol_);
     std::vector<std::unique_ptr<ExprAST>> body;
+    bool hasReturn = false;
     if(cur_token_.type!=TokenType::lBrace)
-    {
+    {   // with only one statement, {} can be omitted
         auto E = ParseStatement();
         if (E != nullptr) body.emplace_back(std::move(E));
+        if (dynamic_cast<ReturnAST*>(E.get()) != nullptr) hasReturn = true;
         if (cur_token_.type == TokenType::Semicolon)
         {
             getNextToken();  //eat ;
         }
-        
-        return std::make_unique<BlockExprAST>(std::move(body));
-    }
-    getNextToken(); //eat {
 
-    while (cur_token_.type != TokenType::rBrace && cur_token_.type != TokenType::Eof) {
-        auto E = ParseStatement();
-        if (!E) return nullptr;
-        body.emplace_back(std::move(E));
-        if(cur_token_.type==TokenType::Semicolon)
-        getNextToken(); // eat ;
     }
-    if (cur_token_.type != TokenType::rBrace) {
-        error("Expected }.");
-        return nullptr;
+    else 
+    {   // block with { }
+        getNextToken();      //eat {
+        while (cur_token_.type != TokenType::rBrace && cur_token_.type != TokenType::Eof) {
+            auto E = ParseStatement();
+            if (!E) return nullptr;
+            if (dynamic_cast<ReturnAST*>(E.get()) != nullptr) hasReturn = true;
+            body.emplace_back(std::move(E));
+            if (cur_token_.type == TokenType::Semicolon)
+                getNextToken();     // eat ;
+        }
+        if (cur_token_.type != TokenType::rBrace) {
+            error("Expected }.");
+            return nullptr;
+        }
+        getNextToken(); //eat }
     }
-    getNextToken(); //eat }
-    return std::make_unique<BlockExprAST>(std::move(body));
+    auto block = std::make_unique<BlockExprAST>(std::move(body), hasReturn);
+    if(!hasReturn)
+        guard.setBlock(block.get());
+    return block;
 }
 
 ::Function Parse::Parser::ParseFunction() {
@@ -683,6 +691,7 @@ std::unique_ptr<BlockExprAST> Parse::Parser::ParseBlock() {
         if (!body) {
             return {};
         }
+      //  sg.setBlock(body.get());
     }
     expr_.push_back(std::make_unique<FunctionAST>(name, std::move(body),::VarType::mangle(f.classType)));
     return f;
@@ -1152,11 +1161,6 @@ Class Parse::Parser::InstantiateTemplate(VarType type,const ClassTemplate& templ
     //Class class_(type);
     unsetExtraTokenStream();
     return Class(type);
-}
-
-void Parser::generateCallDestructor(BlockExprAST* block)
-{
-    symbolTable()->callDestructor(block);
 }
 
 std::unique_ptr<ExprAST> Parser::callDestructor(const Variable& v)

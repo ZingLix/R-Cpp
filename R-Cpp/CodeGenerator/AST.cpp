@@ -270,7 +270,8 @@ llvm::Value* IfExprAST::generateCode(CodeGenerator& cg) {
 
 llvm::Value* CallExprAST::generateCode(CodeGenerator& cg) {
     auto CalleeF = cg.getFunction(Callee);
-    if (!CalleeF) return LogError("Unknown function referenced.");
+    if (!CalleeF) 
+        return LogError("Unknown function referenced.");
     std::vector<Value*> Argv;
     if (thisPtr)
     {
