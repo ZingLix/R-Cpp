@@ -52,7 +52,7 @@ namespace Parse {
         Class InstantiateTemplate(VarType type, const ClassTemplate& template_);
 
         std::unique_ptr<ExprAST> callDestructor(const Variable& var);
-
+        
     private:
         Token& getNextToken();
         OperatorType getNextBinOperator();

@@ -309,18 +309,26 @@ std::unique_ptr<ExprAST> Parse::Parser::ParseVariableDefinition(const std::strin
         }
         std::vector<std::unique_ptr<ExprAST>> exprlist;
         std::string varname = "__" + std::to_string(nameless_var_count_++)+"tmp_";
+        symbolTable()->addNamelessVariable(Variable(varname, type));
         return std::make_unique<NamelessVarExprAST>(varname, ::VarType::mangle(type), target.mangledName(), std::move(args));
     }
-
 }
 
 std::unique_ptr<ExprAST> Parse::Parser::ParseReturnExpr() {
     getNextToken();
-    auto retval = ParseExpression();
-    if (retval != nullptr) return std::make_unique<ReturnAST>(std::move(retval), symbolTable()->callDestructor());
-    getNextToken();
-    error("Invalid return value.");
-    return nullptr;
+    std::unique_ptr<ExprAST> retval=nullptr;
+    if(cur_token_.type!=TokenType::Semicolon)
+    {
+        retval = ParseExpression();
+        if(!retval)
+        {
+            error("Invalid return value.");
+            return nullptr;
+        }
+    }
+
+    return std::make_unique<ReturnAST>(std::move(retval), symbolTable()->callDestructor());
+
 }
 
 std::unique_ptr<ExprAST> Parse::Parser::MergeExpr(std::unique_ptr<ExprAST> LHS, std::unique_ptr<ExprAST> RHS, OperatorType Op)
@@ -643,7 +651,7 @@ std::unique_ptr<BlockExprAST> Parse::Parser::ParseBlock() {
         {
             getNextToken();  //eat ;
         }
-
+        symbol_->callNamelessVarDestructor(body);
     }
     else 
     {   // block with { }
@@ -655,6 +663,7 @@ std::unique_ptr<BlockExprAST> Parse::Parser::ParseBlock() {
             body.emplace_back(std::move(E));
             if (cur_token_.type == TokenType::Semicolon)
                 getNextToken();     // eat ;
+            symbolTable()->callNamelessVarDestructor(body);
         }
         if (cur_token_.type != TokenType::rBrace) {
             error("Expected }.");
@@ -690,6 +699,11 @@ std::unique_ptr<BlockExprAST> Parse::Parser::ParseBlock() {
         body = ParseBlock();
         if (!body) {
             return {};
+        }
+        if(!body->hasReturn()&&dynamic_cast<ReturnAST*>(body->instructions().back().get())==nullptr)
+        {
+            body->instructions().push_back(std::make_unique<ReturnAST>(nullptr, symbolTable()->callDestructor()));
+            body->setHasReturn();
         }
       //  sg.setBlock(body.get());
     }

@@ -207,6 +207,16 @@ std::vector<std::unique_ptr<ExprAST>> SymbolTable::callDestructor()
     return exprs;
 }
 
+void SymbolTable::callNamelessVarDestructor(std::vector<std::unique_ptr<ExprAST>>& exprs)
+{
+    for(auto&v:nameless_values_)
+    {
+        exprs.push_back(parser_.callDestructor(v));
+    }
+    nameless_values_.clear();
+}
+
+
 SymbolTable::ScopeGuard::ScopeGuard(SymbolTable& st): st_(st), block_(nullptr)
 {
     st_.createScope();

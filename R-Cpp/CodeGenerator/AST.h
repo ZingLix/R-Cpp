@@ -86,6 +86,8 @@ public:
     llvm::Value* generateCode(CG::CodeGenerator& cg);
     std::vector<std::unique_ptr<ExprAST>>& instructions();
     bool hasReturn() { return hasReturn_; }
+    void setHasReturn() { hasReturn_ = true; }
+
 private:
     std::vector<std::unique_ptr<ExprAST>> expr_;
     bool hasReturn_;

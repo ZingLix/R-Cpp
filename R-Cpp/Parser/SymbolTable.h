@@ -60,6 +60,11 @@ namespace Parse {
         VarType getVarType(VarType type);
         void setAlias(VarType newType, VarType oldType);
         std::vector<std::unique_ptr<ExprAST>> callDestructor();
+        void callNamelessVarDestructor(std::vector<std::unique_ptr<ExprAST>>& exprs);
+        void addNamelessVariable(Variable v)
+        {
+            nameless_values_.push_back(v);
+        }
 
         class ScopeGuard
         {
@@ -91,10 +96,9 @@ namespace Parse {
         Parser& parser_;
         std::vector<std::map<std::string, Variable>> named_values_;
         std::vector<std::vector<std::string>> named_values_seq_;
+        std::vector<Variable> nameless_values_;
         NamespaceHelper helper_;
         NamespaceHelper* cur_namespace_;
         std::vector<std::string> ns_hierarchy_;
     };
-
-
 }

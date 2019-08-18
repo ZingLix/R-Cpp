@@ -75,7 +75,6 @@ VariableDefAST::VariableDefAST(const std::string& type, const std::string& var_n
     :ExprAST(VarType("void")), type_(type),varname_(var_name),init_value_(std::move(nullptr)) 
 {
 }
-
 llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
     llvm::AllocaInst* alloc;
     if(type_=="__arr")
@@ -101,14 +100,20 @@ llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
     else
     {
         auto type = cg.symbol().getType(type_);
-        alloc = cg.builder().CreateAlloca(type, nullptr, varname_);
-       // auto F = cg.builder().GetInsertBlock()->getParent();
-       // auto alloc = CreateEntryBlockAlloca(F, typename_, varname_, cg);
-        if (init_value_) {
-            auto InitVal = init_value_->generateCode(cg);
-            if (!InitVal) return nullptr;
-            cg.builder().CreateStore(InitVal, alloc);
+        if(init_value_&& dynamic_cast<NamelessVarExprAST*>(init_value_.get()))
+        {
+            init_value_->generateCode(cg);
+            alloc = dynamic_cast<NamelessVarExprAST*>(init_value_.get())->getAlloc();
+        }else
+        {
+            alloc = cg.builder().CreateAlloca(type, nullptr, varname_);
+            if (init_value_) {
+                auto InitVal = init_value_->generateCode(cg);
+                if (!InitVal) return nullptr;
+                cg.builder().CreateStore(InitVal, alloc);
+            }
         }
+
     }
     cg.symbol().setAlloc(varname_, alloc);
     return Constant::getNullValue(Type::getDoubleTy(cg.context()));
@@ -163,12 +168,15 @@ ReturnAST::ReturnAST(std::unique_ptr<ExprAST> returnValue, std::vector<std::uniq
 }
 
 Value* ReturnAST::generateCode(CodeGenerator& cg) {
-    auto retval = ret_val_->generateCode(cg);
+    Value* retval=nullptr;
+    if (ret_val_ != nullptr)
+    {
+        retval = ret_val_->generateCode(cg);
+        if (!retval) return nullptr;
+    }
     for (auto& expr : destructor_expr_)
         expr->generateCode(cg);
-    if(retval!=nullptr)
-        return cg.builder().CreateRet(retval);
-    return nullptr;
+    return cg.builder().CreateRet(retval);
 }
 
 llvm::Value* ForExprAST::generateCode(CodeGenerator& cg) {
@@ -271,7 +279,7 @@ llvm::Value* IfExprAST::generateCode(CodeGenerator& cg) {
 llvm::Value* CallExprAST::generateCode(CodeGenerator& cg) {
     auto CalleeF = cg.getFunction(Callee);
     if (!CalleeF) 
-        return LogError("Unknown function referenced.");
+        return LogError("Unknown function '"+Callee+"' referenced.");
     std::vector<Value*> Argv;
     if (thisPtr)
     {
@@ -340,13 +348,10 @@ llvm::Function* FunctionAST::generateCode(CodeGenerator& cg) {
             cg.symbol().setAlloc(v.second, static_cast<AllocaInst*>(ptr));
         }
     }
-    bool hasReturn = false;
-    for(auto& ins:body_->instructions()) {
+    for (auto& ins : body_->instructions()) {
         ins->generateCode(cg);
-        if(dynamic_cast<ReturnAST*>(ins.get())!=nullptr) {
-            hasReturn = true;
-        }
     }
+    bool hasReturn = body_->hasReturn();
     // fn func(){
     //     if(..) return;
     //     else return;
