@@ -31,7 +31,7 @@ namespace Parse {
         ::Function ParsePrototype();
         ::Function ParseFunction();
         std::unique_ptr<BlockExprAST> ParseBlock();
-        std::unique_ptr<ClassAST> ParseClass(std::string className="");
+        std::unique_ptr<ClassAST> ParseClass(VarType classType=VarType());
         std::vector<std::unique_ptr<ExprAST>> ParseParenExprList();
         std::vector<std::unique_ptr<ExprAST>> ParseSquareExprList();
         std::vector<VarType> ParseAngleExprList();
@@ -62,6 +62,7 @@ namespace Parse {
         std::vector<std::unique_ptr<ExprAST>> ParseExprList(TokenType endToken);
         VarType ParseType();
         ::Function generateFunction_new(const VarType& t);
+        void generateDestructor(Class&c, std::unique_ptr<BlockExprAST> block);
         bool isPostOperator();
         void setExtraTokenStream(std::vector<Token> tokens) {
             cur_token_bak = cur_token_;

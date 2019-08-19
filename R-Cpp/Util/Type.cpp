@@ -128,5 +128,6 @@ std::string Function::mangle(const std::string& name)
 
 std::string Function::mangle(const VarType& type)
 {
-    return "I" + std::to_string(type.typeName.length()) + type.typeName;
+    auto name = VarType::mangle(type);
+    return "I" + std::to_string(name.length()) + name;
 }

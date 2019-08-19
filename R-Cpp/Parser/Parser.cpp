@@ -326,9 +326,11 @@ std::unique_ptr<ExprAST> Parse::Parser::ParseReturnExpr() {
             return nullptr;
         }
     }
-
-    return std::make_unique<ReturnAST>(std::move(retval), symbolTable()->callDestructor());
-
+    std::vector<std::unique_ptr<ExprAST>> destructor;
+    symbolTable()->callNamelessVarDestructor(destructor);
+    auto des2 = symbolTable()->callDestructor();
+    destructor.insert(destructor.end(), std::make_move_iterator(des2.begin()), std::make_move_iterator(des2.end()));
+    return std::make_unique<ReturnAST>(std::move(retval), std::move(destructor));
 }
 
 std::unique_ptr<ExprAST> Parse::Parser::MergeExpr(std::unique_ptr<ExprAST> LHS, std::unique_ptr<ExprAST> RHS, OperatorType Op)
@@ -722,7 +724,7 @@ void Parse::Parser::HandleDefinition() {
     }
 }
 
-std::unique_ptr<ClassAST> Parse::Parser::ParseClass(std::string className)
+std::unique_ptr<ClassAST> Parse::Parser::ParseClass(VarType classType)
 {
     getNextToken();  // eat class
     if (cur_token_.type != TokenType::Identifier) {
@@ -730,18 +732,19 @@ std::unique_ptr<ClassAST> Parse::Parser::ParseClass(std::string className)
         return nullptr;
     }
     auto basename = cur_token_.content;
-    if(className=="")
-        className = basename;
-    Class c(className);
+    if(classType.typeName=="")
+        classType.typeName = basename;
+    Class c(classType);
     getNextToken();
     if (cur_token_.type != TokenType::lBrace) {
         error("Expect class body.");
         return nullptr;
     }
     getNextToken(); // eat ;
+    std::unique_ptr<BlockExprAST> desturctorBlock = nullptr;
     {
         SymbolTable::ScopeGuard guard(*symbol_);
-        SymbolTable::NamespaceGuard ns(*symbol_,className);
+        SymbolTable::NamespaceGuard ns(*symbol_,VarType::mangle(c.type));
         auto tmp = cur_class_;
         cur_class_ = c.type;
         while (cur_token_.type != TokenType::rBrace) {
@@ -781,8 +784,8 @@ std::unique_ptr<ClassAST> Parse::Parser::ParseClass(std::string className)
                         argList.emplace_back(::VarType::mangle(v.type), v.name);
                     }
                     auto P = std::make_unique<PrototypeAST>(::Function::mangle(f), std::move(argList), "void");
-                    P->setClassType(className);
-                    auto F = std::make_unique<FunctionAST>(::Function::mangle(f), std::move(b), className);
+                    P->setClassType(VarType::mangle(c.type));
+                    auto F = std::make_unique<FunctionAST>(::Function::mangle(f), std::move(b), VarType::mangle(c.type));
                     proto_.push_back(std::move(P));
                     expr_.push_back(std::move(F));
                     c.constructors.push_back(f);
@@ -813,31 +816,34 @@ std::unique_ptr<ClassAST> Parse::Parser::ParseClass(std::string className)
                     error("Destructor doesn't take any argument.");
                     return nullptr;
                 }
-                auto block = ParseBlock();
-                std::vector<Variable> args;
-                Function f("__destructor", args, VarType("void"), false);
-                f.classType = c.type;
-                std::vector<std::pair<std::string, std::string>> argList;
-                auto P = std::make_unique<PrototypeAST>(::Function::mangle(f), argList, "void");
-                P->setClassType(className);
-                auto F = std::make_unique<FunctionAST>(::Function::mangle(f), std::move(block), className);
-                proto_.push_back(std::move(P));
-                expr_.push_back(std::move(F));
-                c.destructor=f;
+                desturctorBlock = ParseBlock();
+                //auto block = ParseBlock();
+                //std::vector<Variable> args;
+                //Function f("__destructor", args, VarType("void"), false);
+                //f.classType = c.type;
+                //std::vector<std::pair<std::string, std::string>> argList;
+                //auto P = std::make_unique<PrototypeAST>(::Function::mangle(f), argList, "void");
+                //P->setClassType(className);
+                //auto F = std::make_unique<FunctionAST>(::Function::mangle(f), std::move(block), className);
+                //proto_.push_back(std::move(P));
+                //expr_.push_back(std::move(F));
+                //c.destructor=f;
             }
             if (cur_token_.type == TokenType::Semicolon) getNextToken();
         }
         symbol_->addFunction(generateFunction_new(c.type));
+        generateDestructor(c, std::move(desturctorBlock));
         cur_class_ = tmp;
     }
     getNextToken();
-    symbol_->addClass(className, c);
+    c.type.typeName = VarType::mangle(c.type);
+    symbol_->addClass(c.type.typeName, c);
     std::vector<std::pair<std::string, std::string>> members;
     for(auto&v:c.memberVariables)
     {
         members.emplace_back(::VarType::mangle(v.type), v.name);
     }
-    return std::make_unique<ClassAST>(className,std::move(members));
+    return std::make_unique<ClassAST>(c.type.typeName,std::move(members));
 }
 
 void Parse::Parser::HandleClass()
@@ -1169,7 +1175,7 @@ Class Parse::Parser::InstantiateTemplate(VarType type,const ClassTemplate& templ
         symbol_->setAlias(VarType(template_.typeList[i].second), type.templateArgs[i]);
     }
     
-    auto c = ParseClass(::VarType::mangle(type));
+    auto c = ParseClass((type));
     if (c == nullptr) return {};
     class_.push_back(std::move(c));
     //Class class_(type);
@@ -1179,10 +1185,38 @@ Class Parse::Parser::InstantiateTemplate(VarType type,const ClassTemplate& templ
 
 std::unique_ptr<ExprAST> Parser::callDestructor(const Variable& v)
 {
-    auto destructor = symbolTable()->getClass(::VarType::mangle(v.type)).destructor;
+    if(is_builtin_type(v.type.typeName))
+    {
+        return std::make_unique<NonExprAST>();
+    }
+    auto destructor = symbolTable()->getClass(v.type.typeName).destructor;
     auto c = std::make_unique<CallExprAST>(destructor.mangledName(), std::vector<std::unique_ptr<ExprAST>>(), VarType("void"));
     c->setThis(std::make_unique<VariableExprAST>(v.name,v.type));
     return c;
 }
 
+void Parser::generateDestructor(Class& c, std::unique_ptr<BlockExprAST> block)
+{
+    std::vector<std::unique_ptr<ExprAST>> callDestructorForClassMember;
+    for(auto it=c.memberVariables.rbegin();it!=c.memberVariables.rend();++it)
+    {
+        callDestructorForClassMember.push_back(callDestructor(*it));
+    }
+    if (block == nullptr) {
+        block = std::make_unique<BlockExprAST>(std::move(callDestructorForClassMember), false);
+    } else {
+        block->instructions().insert(block->instructions().end(), std::make_move_iterator(callDestructorForClassMember.begin()),
+            std::make_move_iterator(callDestructorForClassMember.end()));
+    }
+    std::vector<Variable> args;
+    Function f("__destructor", args, VarType("void"), false);
+    f.classType = c.type;
+    std::vector<std::pair<std::string, std::string>> argList;
+    auto P = std::make_unique<PrototypeAST>(::Function::mangle(f), argList, "void");
+    P->setClassType(VarType::mangle(c.type));
+    auto F = std::make_unique<FunctionAST>(::Function::mangle(f), std::move(block), VarType::mangle(c.type));
+    proto_.push_back(std::move(P));
+    expr_.push_back(std::move(F));
+    c.destructor = f;
+}
 
