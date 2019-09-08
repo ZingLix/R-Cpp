@@ -103,21 +103,21 @@ void CodeGenerator::output() {
 
 void CodeGenerator::generate()
 {
-    for(auto& c:parser_.Classes())
-    {
-        c->generateCode(*this)->print(llvm::errs());
-        std::cout << std::endl;
-    }
-    for(auto& p:parser_.Prototypes())
-    {
-        p->generateCode(*this)->print(llvm::errs());
-    }
-    for (auto& c : parser_.Classes()) {
-        c->generateFunction_new(*this)->print(llvm::errs());
-    }
-    for(auto& f:parser_.AST())
-    {
-        f->generateCode(*this)->print(llvm::errs());
-    }
+    //for(auto& c:parser_.Classes())
+    //{
+    //    c->generateCode(*this)->print(llvm::errs());
+    //    std::cout << std::endl;
+    //}
+    //for(auto& p:parser_.Prototypes())
+    //{
+    //    p->generateCode(*this)->print(llvm::errs());
+    //}
+    //for (auto& c : parser_.Classes()) {
+    //    c->generateFunction_new(*this)->print(llvm::errs());
+    //}
+    //for(auto& f:parser_.AST())
+    //{
+    //    f->generateCode(*this)->print(llvm::errs());
+    //}
     output();
 }

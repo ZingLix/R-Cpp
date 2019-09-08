@@ -182,39 +182,39 @@ std::string SymbolTable::getMangledClassName(VarType type)
     return "";
 }
 
-void SymbolTable::callDestructorForCurScope(BlockExprAST* block)
-{
-    for (auto it = named_values_seq_.back().rbegin(); it != named_values_seq_.back().rend(); ++it) {
-        auto& v = named_values_.back()[*it];
-        if (!is_builtin_type(v.type.typeName))
-            block->instructions().push_back(parser_.callDestructor(v));
-    }
-}
+//void SymbolTable::callDestructorForCurScope(BlockExprAST* block)
+//{
+//    for (auto it = named_values_seq_.back().rbegin(); it != named_values_seq_.back().rend(); ++it) {
+//        auto& v = named_values_.back()[*it];
+//        if (!is_builtin_type(v.type.typeName))
+//            block->instructions().push_back(parser_.callDestructor(v));
+//    }
+//}
 
-std::vector<std::unique_ptr<ExprAST>> SymbolTable::callDestructor()
-{
-    std::vector<std::unique_ptr<ExprAST>> exprs;
-    auto valmap = named_values_.rbegin();
-    for (auto scope = named_values_seq_.rbegin();
-        scope != named_values_seq_.rend(); ++scope,++valmap)
-    {
-        for (auto it = scope->rbegin(); it != scope->rend(); ++it) {
-            auto& v = (*valmap)[*it];
-            if (!is_builtin_type(v.type.typeName))
-                exprs.push_back(parser_.callDestructor(v));
-        }
-    }
-    return exprs;
-}
-
-void SymbolTable::callNamelessVarDestructor(std::vector<std::unique_ptr<ExprAST>>& exprs)
-{
-    for(auto&v:nameless_values_)
-    {
-        exprs.push_back(parser_.callDestructor(v));
-    }
-    nameless_values_.clear();
-}
+//std::vector<std::unique_ptr<ExprAST>> SymbolTable::callDestructor()
+//{
+//    std::vector<std::unique_ptr<ExprAST>> exprs;
+//    auto valmap = named_values_.rbegin();
+//    for (auto scope = named_values_seq_.rbegin();
+//        scope != named_values_seq_.rend(); ++scope,++valmap)
+//    {
+//        for (auto it = scope->rbegin(); it != scope->rend(); ++it) {
+//            auto& v = (*valmap)[*it];
+//            if (!is_builtin_type(v.type.typeName))
+//                exprs.push_back(parser_.callDestructor(v));
+//        }
+//    }
+//    return exprs;
+//}
+//
+//void SymbolTable::callNamelessVarDestructor(std::vector<std::unique_ptr<ExprAST>>& exprs)
+//{
+//    for(auto&v:nameless_values_)
+//    {
+//        exprs.push_back(parser_.callDestructor(v));
+//    }
+//    nameless_values_.clear();
+//}
 
 
 SymbolTable::ScopeGuard::ScopeGuard(SymbolTable& st): st_(st), block_(nullptr)
@@ -224,8 +224,8 @@ SymbolTable::ScopeGuard::ScopeGuard(SymbolTable& st): st_(st), block_(nullptr)
 
 SymbolTable::ScopeGuard::~ScopeGuard()
 {
-    if (block_ != nullptr)
-        st_.callDestructorForCurScope(block_);
+   // if (block_ != nullptr)
+        //st_.callDestructorForCurScope(block_);
     st_.destroyScope();
 }
 
