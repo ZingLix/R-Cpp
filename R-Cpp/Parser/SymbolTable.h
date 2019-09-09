@@ -59,8 +59,8 @@ namespace Parse {
         std::string getMangledClassName(VarType type);
         VarType getVarType(VarType type);
         void setAlias(VarType newType, VarType oldType);
-        std::vector<std::unique_ptr<ExprAST>> callDestructor();
-        void callNamelessVarDestructor(std::vector<std::unique_ptr<ExprAST>>& exprs);
+       // std::vector<std::unique_ptr<ExprAST>> callDestructor();
+       // void callNamelessVarDestructor(std::vector<std::unique_ptr<ExprAST>>& exprs);
         void addNamelessVariable(Variable v)
         {
             nameless_values_.push_back(v);
@@ -91,7 +91,7 @@ namespace Parse {
     private:
         const std::vector<Function>* getRawFunction_(const std::string& name, const std::vector<std::string>& ns_hierarchy, NamespaceHelper* ns);
         ClassTemplate getClassTemplate_(std::string name, NamespaceHelper* ns);
-        void callDestructorForCurScope(BlockExprAST* block);
+       // void callDestructorForCurScope(BlockExprAST* block);
 
         Parser& parser_;
         std::vector<std::map<std::string, Variable>> named_values_;
