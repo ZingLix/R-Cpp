@@ -1,6 +1,7 @@
 #include "Parser.h"
 #include <stack>
 #include <iostream>
+#include <cassert>
 
 using namespace Parse;
 
@@ -97,7 +98,12 @@ std::unique_ptr<Stmt> Parse::Parser::ParsePostOperator(std::unique_ptr<Stmt> e)
               OperatorType::FunctionCall, ParseParenExprList());
     } else if (cur_token_.type == TokenType::Point) {
         getNextToken();
-        e= std::make_unique<BinaryOperatorStmt>(std::move(e), ParseExpression(),
+        if(cur_token_.type!=TokenType::Identifier) {
+            error("Expected members of class.");
+        }
+        auto name = cur_token_.content;
+        getNextToken();
+        e= std::make_unique<BinaryOperatorStmt>(std::move(e), std::make_unique<VariableStmt>(name),
             OperatorType::MemberAccessP);
         //e = ParseMemberAccess(std::move(e), OperatorType::MemberAccessP);
     } else if (cur_token_.type == TokenType::Plus) {
@@ -162,7 +168,7 @@ std::unique_ptr<Stmt> Parse::Parser::ParseIdentifierExpr() {
     //    return std::make_unique<NamespaceExprAST>(idname);
     //}
     // is only a identifier
-    if (cur_token_.type != TokenType::lParenthesis) {
+    //if (cur_token_.type != TokenType::lParenthesis) {
         //auto var = symbol_->getValue(idname);
         //if(var.name=="")
         //{
@@ -170,7 +176,7 @@ std::unique_ptr<Stmt> Parse::Parser::ParseIdentifierExpr() {
         //    return nullptr;
         //}
         return std::make_unique<VariableStmt>(idname);;
-    }
+    //}
     // TODO: is calling a function
     /*assert(cur_token_.type == TokenType::lParenthesis);
     auto args = ParseParenExprList();
@@ -684,7 +690,7 @@ std::unique_ptr<CompoundStmt> Parse::Parser::ParseBlock() {
     return block;
 }
 
-::Function Parse::Parser::ParseFunction() {
+std::unique_ptr<FunctionDecl> Parse::Parser::ParseFunction() {
     getNextToken(); // eat fn.
     auto f = ParsePrototype();
     if (f.name=="") return {};
@@ -697,7 +703,7 @@ std::unique_ptr<CompoundStmt> Parse::Parser::ParseBlock() {
         }
         if (cur_token_.type == TokenType::Semicolon) {
             getNextToken();
-            return f;
+            return std::make_unique<FunctionDecl>(f, nullptr);
         }
         if (cur_token_.type != TokenType::lBrace) {
             error("Expected { or ;.");
@@ -714,14 +720,15 @@ std::unique_ptr<CompoundStmt> Parse::Parser::ParseBlock() {
         //}
       //  sg.setBlock(body.get());
     }
-    declartions_.push_back(std::make_unique<FunctionDecl>(f,std::move(body)));
-    return f;
+    //declartions_.push_back();
+    return std::make_unique<FunctionDecl>(f, std::move(body));
 }
 
 void Parse::Parser::HandleDefinition() {
     auto func = ParseFunction();
-    if (func.name != "") {
+    if (func!=nullptr) {
         fprintf(stderr, "Parsed a function definition.\n");
+        declartions_.emplace_back(std::move(func));
         //expr_.emplace_back(std::move(func));
     } else {
         // Skip token for error recovery.
@@ -811,7 +818,9 @@ std::unique_ptr<ClassDecl> Parse::Parser::ParseClass(VarType classType)
                     //c.memberVariables.emplace_back(name, type);
                 }
             } else if (cur_token_.type == TokenType::Function) {
-                c.memberFunctions.push_back(ParseFunction());
+                auto f = ParseFunction();
+                c.memberFunctions.push_back(f->getFunction());
+                classDecl->addMemberFunction(std::move(f));
             } else if (cur_token_.type == TokenType::Tilde) {   // parsing destructor
                 if (getNextToken().type != TokenType::Identifier || cur_token_.content != basename) {
                     error("Expected classname to identify destructor.");

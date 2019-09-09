@@ -30,7 +30,7 @@ namespace Parse {
         std::unique_ptr<Stmt> ParsePostOperator(std::unique_ptr<Stmt> lhs);
         //std::unique_ptr<Stmt> ParseMemberAccess(std::unique_ptr<Stmt> lhs, OperatorType Op);
         ::Function ParsePrototype();
-        ::Function ParseFunction();
+        std::unique_ptr<FunctionDecl> ParseFunction();
         std::unique_ptr<CompoundStmt> ParseBlock();
         std::unique_ptr<ClassDecl> ParseClass(VarType classType=VarType());
         std::vector<std::unique_ptr<Stmt>> ParseParenExprList();
