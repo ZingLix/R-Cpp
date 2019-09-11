@@ -93,7 +93,35 @@ void Parse::UnaryOperatorStmt::print(std::string indent, bool last) {
     }
 }
 
-Parse::VariableDefStmt::VariableDefStmt(const VarType& type, const std::string& name): type_(type), name_(name) {
+std::unique_ptr<ExprAST> Parse::UnaryOperatorStmt::toLLVMAST(ASTContext* context) {
+    auto expr = stmt_->toLLVMAST(context);
+    if(stmt_->getType().typeName=="__function"&&op_==OperatorType::FunctionCall) {
+        auto fnList = context->symbolTable().getFunction(idname, cur_namespace_);
+        Function target;
+        for (auto& f : *fnList) {
+            bool flag = true;
+            if (f.args.size() == args_.size()) {
+                size_t i = 0;
+                while (i < f.args.size()) {
+                    if (f.args[i].type != args[i]->getType()) {
+                        flag = false;
+                        break;
+                    }
+                    ++i;
+                }
+                if (flag) target = f;
+            }
+        }
+        if (target.name == "") {
+            error("No suitable function.");
+            return nullptr;
+        }
+        return std::make_unique<CallExprAST>(Function::mangle(target), std::move(args), target.returnType);
+
+    }
+}
+
+Parse::VariableDefStmt::VariableDefStmt(const VarType& type, const std::string& name):Stmt(VarType("void")), vartype_(type), name_(name) {
 }
 
 void Parse::VariableDefStmt::setInitValue(std::unique_ptr<Stmt> initVal) {
@@ -107,9 +135,25 @@ void Parse::VariableDefStmt::print(std::string indent, bool last) {
         init_val_->print(indent, true);
 }
 
+std::unique_ptr<ExprAST> Parse::VariableDefStmt::toLLVMAST(ASTContext* context) {
+    if(context->symbolTable().hasType(vartype_.mangledName())) {
+        throw std::logic_error("Unknown type: " + type_.typeName);
+    }
+    if(context->symbolTable().getValue(name_).name!="") {
+        throw std::logic_error("Duplicate variable name: " + name_);
+    }
+    context->symbolTable().setValue(name_, Variable(name_,vartype_));
+    if(init_val_!=nullptr) {
+        return std::make_unique<VariableDefAST>(vartype_.mangledName(), name_, init_val_->toLLVMAST(context));
+    }else {
+        return std::make_unique<VariableDefAST>(vartype_.mangledName(), name_);
+    }
+
+}
+
 Parse::NamelessVariableStmt::
 NamelessVariableStmt(const VarType& type,
-                     std::vector<std::unique_ptr<Stmt>> args): type_(type), args_(std::move(args)) {
+                     std::vector<std::unique_ptr<Stmt>> args): Stmt(type), args_(std::move(args)) {
 }
 
 void Parse::NamelessVariableStmt::print(std::string indent, bool last) {
@@ -120,11 +164,48 @@ void Parse::NamelessVariableStmt::print(std::string indent, bool last) {
     }
 }
 
+std::unique_ptr<ExprAST> Parse::NamelessVariableStmt::toLLVMAST(ASTContext* context) {
+    auto clas = context->symbolTable().getClass(type_.mangledName());
+    if (clas.type.typeName == "") {
+        throw std::logic_error("No class named " + type_.typeName);
+        //error("No class named " + type.typeName);
+    }
+    Function  target;
+    for (auto& f : clas.constructors) {
+        if (f.args.size() == args_.size()) {
+            bool flag = true;
+            for (size_t i = 0; i < f.args.size(); ++i) {
+                if (f.args[i].type != args_[i]->getType()) {
+                    flag = false;
+                    break;
+                }
+            }
+            if (flag) {
+                target = f;
+                break;
+            }
+        }
+    }
+    if (target.name == "") {
+        throw std::logic_error("No suitable constructor.");
+    }
+    std::vector<std::unique_ptr<Stmt>> exprlist;
+    std::string varname = "__" + std::to_string(context->getNamelessVarCount()) + "tmp_";
+    context->symbolTable().addNamelessVariable(Variable(varname, type_));
+}
+
 Parse::VariableStmt::VariableStmt(const std::string& name): name_(name) {
 }
 
 void Parse::VariableStmt::print(std::string indent, bool last) {
     std::cout << indent << "+-VariableStmt " << name_ << std::endl;
+}
+
+std::unique_ptr<ExprAST> Parse::VariableStmt::toLLVMAST(ASTContext* context) {
+    auto v = context->symbolTable().getValue(name_);
+    if (v.name == "") throw std::logic_error("Unknown identifier: " + name_);
+    type_ = v.type;
+    return std::make_unique<VariableExprAST>(name_,v.type);
 }
 
 Parse::IntegerStmt::IntegerStmt(std::int64_t val): Stmt(VarType("i32")), val_(val) {

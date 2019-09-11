@@ -159,7 +159,7 @@ std::unique_ptr<Stmt> Parse::Parser::ParseIdentifierExpr() {
     getNextToken();
     // is defining a identifier
  //   if (cur_token_.type_llvm == TokenType::Identifier||cur_token_.type_llvm==TokenType::lAngle) {
-    if(symbol_->hasType(idname)&&(cur_token_.type == TokenType::Identifier || cur_token_.type == TokenType::lAngle || cur_token_.type==TokenType::lParenthesis)){
+    if((cur_token_.type == TokenType::Identifier || cur_token_.type == TokenType::lAngle || cur_token_.type==TokenType::lParenthesis)){
         return ParseVariableDefinition(idname);
     }
     // TODO: Namspace
@@ -209,7 +209,6 @@ std::unique_ptr<Stmt> Parse::Parser::ParseIdentifierExpr() {
 }
 
 std::unique_ptr<Stmt> Parse::Parser::ParseForExpr() {
-    SymbolTable::ScopeGuard sg(*symbol_);
     getNextToken(); //eat for
     if(cur_token_.type!=TokenType::lParenthesis) {
         error("Expected ( after a for loop.");
@@ -247,7 +246,6 @@ std::unique_ptr<Stmt> Parse::Parser::ParseVariableDefinition(const std::string& 
     }
     auto type = VarType(type_name);
     type.templateArgs = template_args;
-    type.typeName = symbol_->getMangledClassName(type);
     if(cur_token_.type==TokenType::Identifier)
     {   // like 'int p=0'
         auto varname = cur_token_.content;
@@ -290,37 +288,7 @@ std::unique_ptr<Stmt> Parse::Parser::ParseVariableDefinition(const std::string& 
     {   // like 'Var(10)'
         assert(cur_token_.type == TokenType::lParenthesis);
         auto args = ParseParenExprList();
-        /*auto clas = symbolTable()->getClass(::VarType::mangle(type));
-        if(clas.type.typeName=="")
-        {
-            error("No class named " + type.typeName);
-        }
-        Function  target;
-        for(auto& f:clas.constructors)
-        {
-            if(f.args.size()==args.size())
-            {
-                bool flag = true;
-                for (size_t i = 0; i < f.args.size(); ++i) {
-                    if (f.args[i].type != args[i]->getType()) {
-                        flag = false;
-                        break;
-                    }
-                }
-                if (flag) {
-                    target = f;
-                    break;
-                }
-            }
-        }
-        if(target.name=="")
-        {
-            error("No suitable constructor.");
-            return nullptr;
-        }
-        std::vector<std::unique_ptr<Stmt>> exprlist;
-        std::string varname = "__" + std::to_string(nameless_var_count_++)+"tmp_";*/
-        //symbolTable()->addNamelessVariable(Variable(varname, type));
+
         return std::make_unique<NamelessVariableStmt>(type, std::move(args));
     }
 }

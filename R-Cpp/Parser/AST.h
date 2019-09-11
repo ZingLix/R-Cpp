@@ -3,6 +3,8 @@
 #include <vector>
 #include "../Util/Operator.h"
 #include "../Util/Type.h"
+#include "../CodeGenerator/AST.h"
+#include "ASTContext.h"
 #include <iostream>
 
 namespace Parse
@@ -29,7 +31,10 @@ namespace Parse
         }
 
         virtual void print(std::string indent, bool last)=0;
-        virtual ~Stmt() = default;
+        virtual std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) = 0;
+        virtual ~Stmt() {
+            assert(type_.typeName != "");
+        }
         VarType type_;
     };
 
@@ -55,6 +60,7 @@ namespace Parse
                std::unique_ptr<CompoundStmt> els = nullptr);
 
         void print(std::string indent, bool last) override;
+        std::unique_ptr<ExprAST> toLLVMAST(ASTContext* context) override;
     private:
         std::unique_ptr<Stmt> cond_;
         std::unique_ptr<Stmt> then_;
@@ -100,10 +106,10 @@ namespace Parse
     {
     public:
         UnaryOperatorStmt(std::unique_ptr<Stmt> expr, OperatorType op);
-
         UnaryOperatorStmt(std::unique_ptr<Stmt> expr, OperatorType op, std::vector<std::unique_ptr<Stmt>> args);
 
         void print(std::string indent, bool last) override;
+        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
 
     private:
         std::unique_ptr<Stmt> stmt_;
@@ -118,8 +124,9 @@ namespace Parse
 
         void setInitValue(std::unique_ptr<Stmt> initVal);
         void print(std::string indent, bool last) override;
+        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
-        VarType type_;
+        VarType vartype_;
         std::string name_;
         std::unique_ptr<Stmt> init_val_;
     };
@@ -130,9 +137,8 @@ namespace Parse
         NamelessVariableStmt(const VarType& type, std::vector<std::unique_ptr<Stmt>> args);
 
         void print(std::string indent, bool last) override;
-
+        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
-        VarType type_;
         std::vector<std::unique_ptr<Stmt>> args_;
     };
 
@@ -141,6 +147,7 @@ namespace Parse
     public:
         VariableStmt(const std::string& name);
         void print(std::string indent, bool last) override;
+        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
 
     private:
         std::string name_;
@@ -151,7 +158,9 @@ namespace Parse
     public:
         IntegerStmt(std::int64_t val);
         void print(std::string indent, bool last) override;
-
+        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override {
+            return std::make_unique<IntegerExprAST>(val_);
+        }
     private:
         std::int64_t val_;
     };
@@ -161,7 +170,9 @@ namespace Parse
     public:
         FloatStmt(double val);
         void print(std::string indent, bool last) override;
-
+        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override {
+            return std::make_unique<FloatExprAST>(val_);
+        }
     private:
         double val_;
     };

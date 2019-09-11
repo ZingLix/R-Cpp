@@ -1,6 +1,5 @@
 #pragma once
 #include <memory>
-#include "../CodeGenerator/AST.h"
 #include "../Lexer/Lexer.h"
 #include "SymbolTable.h"
 #include "AST.h"
@@ -11,8 +10,7 @@ namespace Parse {
     {
     public:
         Parser(const std::string& filename) :lexer_(filename),
-            cur_token_(lexer_.nextToken()),cur_token_bak(cur_token_),
-            symbol_(std::make_shared<Parse::SymbolTable>(*this)),
+            cur_token_(lexer_.nextToken()),
             isExternal(false),nameless_var_count_(0) {
         }
 
@@ -64,9 +62,8 @@ namespace Parse {
         bool isPostOperator();
 
         Lexer lexer_;
-        Token cur_token_,cur_token_bak;
+        Token cur_token_;
         std::vector<std::unique_ptr<Decl>> declartions_;
-        std::shared_ptr<Parse::SymbolTable> symbol_;
         std::vector<std::string> cur_namespace_;
         VarType cur_class_;
         bool isExternal;

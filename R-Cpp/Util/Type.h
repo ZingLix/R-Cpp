@@ -22,7 +22,9 @@ struct VarType
     bool operator<(const VarType& other) const;
 
     static std::string mangle(const VarType& type);
-
+    std::string mangledName() {
+        return mangle(*this);
+    }
     std::string typeName;
     std::vector<VarType> templateArgs;
     std::vector<std::string> namespaceHierarchy;

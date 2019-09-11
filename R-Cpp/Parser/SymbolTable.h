@@ -38,7 +38,7 @@ namespace Parse {
     class SymbolTable
     {
     public:
-        SymbolTable(Parser& p);
+        SymbolTable();
         void createScope();
         void destroyScope();
         void createNamespace(const std::string& name);
@@ -93,7 +93,7 @@ namespace Parse {
         ClassTemplate getClassTemplate_(std::string name, NamespaceHelper* ns);
        // void callDestructorForCurScope(BlockExprAST* block);
 
-        Parser& parser_;
+        //Parser& parser_;
         std::vector<std::map<std::string, Variable>> named_values_;
         std::vector<std::vector<std::string>> named_values_seq_;
         std::vector<Variable> nameless_values_;

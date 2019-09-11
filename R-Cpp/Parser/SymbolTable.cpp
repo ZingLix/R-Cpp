@@ -3,7 +3,7 @@
 
 using namespace Parse;
 
-SymbolTable::SymbolTable(Parser& p):parser_(p), helper_("",nullptr),cur_namespace_(&helper_)
+SymbolTable::SymbolTable():helper_("",nullptr),cur_namespace_(&helper_)
 {
     createScope();
 }
@@ -176,7 +176,7 @@ std::string SymbolTable::getMangledClassName(VarType type)
     if(type.templateArgs.size()!=0)
     {
         auto t = getClassTemplate(type.typeName);
-        parser_.InstantiateTemplate(type,t);
+        //parser_.InstantiateTemplate(type,t);
         return name;
     }
     return "";
