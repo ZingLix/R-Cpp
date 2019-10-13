@@ -28,6 +28,20 @@ namespace CG {
 
         SymbolTable& symbol() { return st_; }
 
+        llvm::Type* getBuiltinType(const std::string& name);
+        llvm::Value* getBuiltinTypeDefaultValue(const std::string& name);
+        llvm::Type* getType(const std::string& name)
+        {
+            return symbol().getType(name);
+        }
+        llvm::Type* getPtrTypeOf(const std::string& name)
+        {
+            return llvm::PointerType::getUnqual(getType(name));
+        }
+        llvm::Type* getArrayTypeOf(const std::string& name,int count)
+        {
+            return llvm::ArrayType::get(getType(name), count);
+        }
     private:
         Parse::Parser& parser_;
         llvm::LLVMContext TheContext;

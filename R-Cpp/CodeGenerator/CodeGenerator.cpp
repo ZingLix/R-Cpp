@@ -101,6 +101,31 @@ void CodeGenerator::output() {
     std::cout << "output to: " << Filename << std::endl;
 }
 
+llvm::Type* CodeGenerator::getBuiltinType(const std::string& s)
+{
+    if (s == "i32") return llvm::Type::getInt32Ty(this->context());
+    if (s == "i64") return llvm::Type::getInt64Ty(this->context());
+    if (s == "u32") return llvm::Type::getInt32Ty(this->context());
+    if (s == "u64") return llvm::Type::getInt64Ty(this->context());
+    if (s == "bool") return llvm::Type::getInt1Ty(this->context());
+    if (s == "float") return llvm::Type::getFloatTy(this->context());
+    if (s == "double") return llvm::Type::getDoubleTy(this->context());
+    if (s == "void") return llvm::Type::getVoidTy(this->context());
+    return nullptr;
+}
+
+llvm::Value* CodeGenerator::getBuiltinTypeDefaultValue(const std::string& s)
+{
+    if (s == "i32") return llvm::ConstantInt::get(this->context(), llvm::APInt(32, 0, true));
+    if (s == "i64") return llvm::ConstantInt::get(this->context(), llvm::APInt(64, 0, true));
+    if (s == "u32") return llvm::ConstantInt::get(this->context(), llvm::APInt(32, 0, false));
+    if (s == "u64") return llvm::ConstantInt::get(this->context(), llvm::APInt(32, 0, false));
+    if (s == "bool") return llvm::ConstantInt::get(this->context(), llvm::APInt(1, 0, false));
+    if (s == "float") return llvm::ConstantFP::get(this->context(), llvm::APFloat(0.0));
+    if (s == "double") return llvm::ConstantFP::get(this->context(), llvm::APFloat(0.0));
+    return nullptr;
+}
+
 void CodeGenerator::generate()
 {
     //for(auto& c:parser_.Classes())

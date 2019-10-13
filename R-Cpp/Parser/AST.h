@@ -19,9 +19,6 @@ namespace Parse
     class Stmt
     {
     public:
-        Stmt(const VarType& type):type_(type)
-        { }
-
         Stmt()
         {}
 
@@ -33,14 +30,9 @@ namespace Parse
         virtual void print(std::string indent, bool last)=0;
         virtual std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) = 0;
         virtual ~Stmt() {
-            assert(type_.typeName != "");
+            //assert(type_!=nullptr);
         }
-        VarType type_;
-    };
-
-    class Type
-    {
-        
+        Type* type_;
     };
 
     class CompoundStmt:public Stmt
@@ -48,7 +40,8 @@ namespace Parse
     public:
         CompoundStmt(std::vector<std::unique_ptr<Stmt>> exprs);
         void print(std::string indent, bool last) override;
-
+        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
+        std::unique_ptr<BlockExprAST> toBlockExprAST(ASTContext*);
     private:
         std::vector<std::unique_ptr<Stmt>> stmts_;
     };
@@ -63,8 +56,8 @@ namespace Parse
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext* context) override;
     private:
         std::unique_ptr<Stmt> cond_;
-        std::unique_ptr<Stmt> then_;
-        std::unique_ptr<Stmt> else_;
+        std::unique_ptr<CompoundStmt> then_;
+        std::unique_ptr<CompoundStmt> else_;
     };
 
     class ForStmt: public Stmt
@@ -74,7 +67,7 @@ namespace Parse
                 std::unique_ptr<CompoundStmt> body);
 
         void print(std::string indent, bool last) override;
-
+        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
         std::unique_ptr<Stmt> start_, cond_, end_;
         std::unique_ptr<CompoundStmt> body_;
@@ -85,7 +78,7 @@ namespace Parse
     public:
         ReturnStmt(std::unique_ptr<Stmt> returnVal);
         void print(std::string indent, bool last) override;
-
+        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
         std::unique_ptr<Stmt> ret_val_;
     };
@@ -95,7 +88,7 @@ namespace Parse
     public:
         BinaryOperatorStmt(std::unique_ptr<Stmt> lhs, std::unique_ptr<Stmt> rhs, OperatorType op);
         void print(std::string indent, bool last) override;
-
+        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
         std::unique_ptr<Stmt> lhs_;
         std::unique_ptr<Stmt> rhs_;
@@ -120,25 +113,52 @@ namespace Parse
     class VariableDefStmt: public Stmt
     {
     public:
-        VariableDefStmt(const VarType& type, const std::string& name);
+        VariableDefStmt(std::unique_ptr<Stmt> type, const std::string& name);
 
         void setInitValue(std::unique_ptr<Stmt> initVal);
         void print(std::string indent, bool last) override;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
-        VarType vartype_;
+        std::unique_ptr<Stmt> vartype_;
         std::string name_;
         std::unique_ptr<Stmt> init_val_;
+    };
+
+    class TypeStmt: public Stmt
+    {
+    public:
+        TypeStmt(const std::string& name, std::vector<std::unique_ptr<Stmt>> arglist={})
+            :name_(name),arglist_(std::move(arglist))
+        { }
+        void print(std::string indent, bool last) override
+        {
+            std::cout << name_;
+            if(arglist_.size()!=0)
+            {
+                std::cout << "<";
+                for(size_t i=0;i<arglist_.size();++i)
+                {
+                    arglist_[i]->print(indent, last);
+                    if(i!=arglist_.size()-1) std::cout << ", ";
+                }
+                std::cout << ">";
+            }
+        }
+        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override { return nullptr; }
+    private:
+        std::string name_;
+        std::vector<std::unique_ptr<Stmt>> arglist_;
     };
 
     class NamelessVariableStmt: public Stmt
     {
     public:
-        NamelessVariableStmt(const VarType& type, std::vector<std::unique_ptr<Stmt>> args);
+        NamelessVariableStmt(std::unique_ptr<Stmt> type, std::vector<std::unique_ptr<Stmt>> args);
 
         void print(std::string indent, bool last) override;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
+        std::unique_ptr<Stmt> vartype_;
         std::vector<std::unique_ptr<Stmt>> args_;
     };
 
@@ -148,7 +168,10 @@ namespace Parse
         VariableStmt(const std::string& name);
         void print(std::string indent, bool last) override;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
-
+        const std::string& getName()
+        {
+            return name_;
+        }
     private:
         std::string name_;
     };
@@ -186,13 +209,22 @@ namespace Parse
     class FunctionDecl:public Decl
     {
     public:
-        FunctionDecl(::Function f, std::unique_ptr<CompoundStmt> body = nullptr);
+        FunctionDecl(std::string funcName,
+        std::vector<std::pair<std::unique_ptr<Stmt>, std::string>> args,
+        std::unique_ptr<Stmt> retType ,
+        std::unique_ptr<CompoundStmt> body = nullptr, bool isExternal=false);
         void print(std::string indent, bool last) override;
-        ::Function getFunction();
-
+        void setBody(std::unique_ptr<CompoundStmt> body)
+        {
+            body_ = std::move(body);
+        }
+        void toLLVM(ASTContext* context);
     private:
-        ::Function func_;
+        std::string funcName_;
+        std::vector<std::pair<std::unique_ptr<Stmt>, std::string>> args_;
+        std::unique_ptr<Stmt> retType_;
         std::unique_ptr<CompoundStmt> body_;
+        bool isExternal_;
     };
 
 
@@ -202,13 +234,23 @@ namespace Parse
         ClassDecl(const std::string& name);
 
         void addMemberFunction(std::unique_ptr<FunctionDecl> func);
-        void addMemberVariable(VarType type, const std::string name);
+        void addMemberVariable(std::unique_ptr<Stmt> type, const std::string& name);
+        void addConstructor(std::unique_ptr<FunctionDecl> func);
+        void setDestructor(std::unique_ptr<FunctionDecl> func);
         void print(std::string indent, bool last) override;
+        const std::string& name() { return name_; }
+        void toLLVM(ASTContext* context);
+        const std::vector<std::pair<std::unique_ptr<Stmt>, std::string>>& getMemberVariables()
+        {
+            return memberVariables_;
+        }
 
     private:
         std::string name_;
-        std::vector<std::pair<VarType, std::string>> member_variables_;
-        std::vector<std::unique_ptr<FunctionDecl>> member_functions_;
+        std::vector<std::pair<std::unique_ptr<Stmt>, std::string>> memberVariables_;
+        std::vector<std::unique_ptr<FunctionDecl>> memberFunctions_;
+        std::vector<std::unique_ptr<FunctionDecl>> constructors_;
+        std::unique_ptr<FunctionDecl> destructor_;
     };
 
 

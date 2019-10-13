@@ -3,6 +3,7 @@
 #include "../Lexer/Lexer.h"
 #include "SymbolTable.h"
 #include "AST.h"
+#include "Type.h"
 
 namespace Parse {
 
@@ -10,8 +11,8 @@ namespace Parse {
     {
     public:
         Parser(const std::string& filename) :lexer_(filename),
-            cur_token_(lexer_.nextToken()),
-            isExternal(false),nameless_var_count_(0) {
+            cur_token_(lexer_.nextToken())/*,
+            isExternal(false),nameless_var_count_(0)*/ {
         }
 
         std::unique_ptr<Stmt> ParsePrimary();
@@ -27,26 +28,26 @@ namespace Parse {
         std::unique_ptr<Stmt> ParseForExpr();
         std::unique_ptr<Stmt> ParsePostOperator(std::unique_ptr<Stmt> lhs);
         //std::unique_ptr<Stmt> ParseMemberAccess(std::unique_ptr<Stmt> lhs, OperatorType Op);
-        ::Function ParsePrototype();
+        std::unique_ptr<FunctionDecl> ParsePrototype();
         std::unique_ptr<FunctionDecl> ParseFunction();
         std::unique_ptr<CompoundStmt> ParseBlock();
-        std::unique_ptr<ClassDecl> ParseClass(VarType classType=VarType());
+        std::unique_ptr<ClassDecl> ParseClass();
         std::vector<std::unique_ptr<Stmt>> ParseParenExprList();
         std::vector<std::unique_ptr<Stmt>> ParseSquareExprList();
-        std::vector<VarType> ParseAngleExprList();
-
+        std::vector<std::unique_ptr<Stmt>> ParseAngleExprList();
+        std::vector<std::pair<std::unique_ptr<Stmt>, std::string>> ParseFunctionArgList();
         void HandleDefinition();
         void HandleClass();
         void MainLoop();
-        std::shared_ptr<Parse::SymbolTable> symbolTable();
 
         void ParseExternal();
         void ParseInternal();
-        void ParseUsing();
-        void ParseTemplateClass();
+        //void ParseUsing();
+        //void ParseTemplateClass();
 
-        Class InstantiateTemplate(VarType type, const ClassTemplate& template_);
+        //Class InstantiateTemplate(VarType type, const ClassTemplate& template_);
         void print();
+        void convertToLLVM();
         //std::unique_ptr<Stmt> callDestructor(const Variable& var);
         
     private:
@@ -56,17 +57,18 @@ namespace Parse {
         void error(const std::string& errmsg);
         std::unique_ptr<Stmt> MergeExpr(std::unique_ptr<Stmt>, std::unique_ptr<Stmt>, OperatorType);
         std::vector<std::unique_ptr<Stmt>> ParseExprList(TokenType endToken);
-        VarType ParseType();
-        ::Function generateFunction_new(const VarType& t);
+        std::unique_ptr<Stmt> ParseType();
         //void generateDestructor(Class&c, std::unique_ptr<BlockExprAST> block);
         bool isPostOperator();
 
         Lexer lexer_;
         Token cur_token_;
-        std::vector<std::unique_ptr<Decl>> declartions_;
-        std::vector<std::string> cur_namespace_;
-        VarType cur_class_;
+        std::vector<std::unique_ptr<FunctionDecl>> functionDecls_;
+        std::vector<std::unique_ptr<ClassDecl>> classDecls_;
+        //std::vector<std::string> cur_namespace_;
+        //VarType cur_class_;
         bool isExternal;
-        int32_t nameless_var_count_;
+        ASTContext context_;
+        //int32_t nameless_var_count_;
     };
 }

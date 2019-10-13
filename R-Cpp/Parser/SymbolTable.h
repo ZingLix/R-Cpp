@@ -1,17 +1,29 @@
 #pragma once
-#include "../Util/Type.h"
+#include "Type.h"
 #include "../Util/Token.h"
+#include <vector>
+#include <map>
 
 class BlockExprAST;
 class ExprAST;
 namespace Parse {
 
-    struct ClassTemplate
+    class Variable
     {
-        VarType type;
-        std::vector<std::pair<VarType, std::string>> typeList;
-        std::vector<Token> token;
+    public:
+        Variable(Type* type,const std::string& varName):type_(type),name_(varName)
+        { }
+
+        Type* type_;
+        std::string name_;
     };
+
+    //struct ClassTemplate
+    //{
+    //    VarType type;
+    //    std::vector<std::pair<VarType, std::string>> typeList;
+    //    std::vector<Token> token;
+    //};
 
     struct NamespaceHelper
     {
@@ -26,10 +38,10 @@ namespace Parse {
         std::string name;
         std::map<std::string, std::unique_ptr<NamespaceHelper>> nextNS;
         std::vector<NamespaceHelper*> insertedNS;
-        std::map<std::string, std::vector<Function>> namedFunction;
-        std::map<std::string, Class> namedClass;
-        std::map<std::string, ClassTemplate> classTemplate;
-        std::map<VarType, VarType> alias;
+        std::map<std::string, std::vector<std::unique_ptr<FunctionType>>> namedFunction;
+        std::map<std::string, std::unique_ptr<Type>> namedType;
+        //std::map<std::string, ClassTemplate> classTemplate;
+        std::map<std::string, Type*> alias;
         NamespaceHelper* lastNS;
     };
 
@@ -44,26 +56,22 @@ namespace Parse {
         void createNamespace(const std::string& name);
         void destroyNamespace();
 
-        Variable getValue(const std::string& name);
-        void setValue(const std::string& name, Variable val);
-        bool hasType(const std::string& name);
-        void addClass(const std::string& name, Class c);
-        Class getClass(const std::string& name);
-        VarType getClassMemberType(const std::string& classType, const std::string& memberName);
-        int getClassMemberIndex(const std::string& classType, const std::string& memberName);
-        void addFunction(const ::Function& func);
-        const std::vector<::Function>* getFunction(const std::string& name, const std::vector<std::string>& ns_hierarchy = {});
+        Variable* getVariable(const std::string& name);
+        void addVariable(Type*type, const std::string& name);
+        CompoundType* addType(const std::string& name, std::vector<std::pair<Type*, std::string>> memberList);
+        Type* getType(const std::string& name);
+        void addFunction(const std::string& name, std::vector<std::pair<Type*, std::string>> argList,Type* returnType,bool isExternal=false);
+        const std::vector<std::unique_ptr<FunctionType>>* getFunction(const std::string& name, const std::vector<std::string>& ns_hierarchy={});
         const std::vector<std::string>& getNamespaceHierarchy();
-        void addClassTemplate(ClassTemplate template_);
-        ClassTemplate getClassTemplate(std::string name);
-        std::string getMangledClassName(VarType type);
-        VarType getVarType(VarType type);
-        void setAlias(VarType newType, VarType oldType);
+        //void addClassTemplate(ClassTemplate template_);
+        //ClassTemplate getClassTemplate(std::string name);
+        //std::string getMangledClassName(VarType type);
+        void setAlias(const std::string& newName, Type* oldType);
        // std::vector<std::unique_ptr<ExprAST>> callDestructor();
        // void callNamelessVarDestructor(std::vector<std::unique_ptr<ExprAST>>& exprs);
-        void addNamelessVariable(Variable v)
+        void addNamelessVariable(Type* type,const std::string name)
         {
-            nameless_values_.push_back(v);
+            nameless_values_.push_back(std::make_unique<Variable>(type,name));
         }
 
         class ScopeGuard
@@ -89,14 +97,14 @@ namespace Parse {
         };
 
     private:
-        const std::vector<Function>* getRawFunction_(const std::string& name, const std::vector<std::string>& ns_hierarchy, NamespaceHelper* ns);
-        ClassTemplate getClassTemplate_(std::string name, NamespaceHelper* ns);
-       // void callDestructorForCurScope(BlockExprAST* block);
+        const std::vector<std::unique_ptr<FunctionType>>* getRawFunction_(const std::string& name, const std::vector<std::string>& ns_hierarchy, NamespaceHelper* ns);
+        //ClassTemplate getClassTemplate_(std::string name, NamespaceHelper* ns);
+        //void callDestructorForCurScope(BlockExprAST* block);
 
         //Parser& parser_;
-        std::vector<std::map<std::string, Variable>> named_values_;
+        std::vector<std::map<std::string, std::unique_ptr<Variable>>> named_values_;
         std::vector<std::vector<std::string>> named_values_seq_;
-        std::vector<Variable> nameless_values_;
+        std::vector<std::unique_ptr<Variable>> nameless_values_;
         NamespaceHelper helper_;
         NamespaceHelper* cur_namespace_;
         std::vector<std::string> ns_hierarchy_;
