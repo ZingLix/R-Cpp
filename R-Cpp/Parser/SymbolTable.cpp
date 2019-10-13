@@ -70,10 +70,12 @@ Type* SymbolTable::getType(const std::string& t)
     return nullptr;
 }
 
-void SymbolTable::addFunction(const std::string& name, std::vector<std::pair<Type*, std::string>> argList, Type* returnType, bool isExternal)
+FunctionType* SymbolTable::addFunction(const std::string& name, std::vector<std::pair<Type*, std::string>> argList, Type* returnType, bool isExternal)
 {
-    cur_namespace_->namedFunction[name].push_back(std::make_unique<FunctionType>(name,std::move(argList),returnType,nullptr,isExternal));
-
+    auto fn = std::make_unique<FunctionType>(name, std::move(argList), returnType, nullptr, isExternal);
+    auto ret = fn.get();
+    cur_namespace_->namedFunction[name].push_back(std::move(fn));
+    return ret;
 }
 
 const std::vector<std::unique_ptr<FunctionType>>* SymbolTable::getFunction(const std::string& name, const std::vector<std::string>& ns_hierarchy)

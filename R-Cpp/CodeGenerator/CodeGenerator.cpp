@@ -16,7 +16,7 @@
 
 using namespace CG;
 
-CodeGenerator::CodeGenerator(Parse::Parser& p):parser_(p), Builder(TheContext), TheModule(std::make_unique<llvm::Module>("RCpp", context())),
+CodeGenerator::CodeGenerator(Parse::Parser& p):context_(p.context()), Builder(TheContext), TheModule(std::make_unique<llvm::Module>("RCpp", context())),
                                 TheFPM(std::make_unique<llvm::legacy::FunctionPassManager>(TheModule.get())),st_(*this)
 {
     // Promote allocas to registers.
@@ -128,21 +128,21 @@ llvm::Value* CodeGenerator::getBuiltinTypeDefaultValue(const std::string& s)
 
 void CodeGenerator::generate()
 {
-    //for(auto& c:parser_.Classes())
-    //{
-    //    c->generateCode(*this)->print(llvm::errs());
-    //    std::cout << std::endl;
-    //}
-    //for(auto& p:parser_.Prototypes())
-    //{
-    //    p->generateCode(*this)->print(llvm::errs());
-    //}
-    //for (auto& c : parser_.Classes()) {
+    for(auto& c: *context_.Class())
+    {
+        c->generateCode(*this)->print(llvm::errs());
+        std::cout << std::endl;
+    }
+    for(auto& p: *context_.Prototype())
+    {
+        p->generateCode(*this)->print(llvm::errs());
+    }
+    //for (auto& c : context_.Classes()) {
     //    c->generateFunction_new(*this)->print(llvm::errs());
     //}
-    //for(auto& f:parser_.AST())
-    //{
-    //    f->generateCode(*this)->print(llvm::errs());
-    //}
+    for(auto& f: *context_.Function())
+    {
+        f->generateCode(*this)->print(llvm::errs());
+    }
     output();
 }

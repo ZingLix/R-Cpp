@@ -60,7 +60,7 @@ namespace Parse {
         void addVariable(Type*type, const std::string& name);
         CompoundType* addType(const std::string& name, std::vector<std::pair<Type*, std::string>> memberList);
         Type* getType(const std::string& name);
-        void addFunction(const std::string& name, std::vector<std::pair<Type*, std::string>> argList,Type* returnType,bool isExternal=false);
+        FunctionType* addFunction(const std::string& name, std::vector<std::pair<Type*, std::string>> argList,Type* returnType,bool isExternal=false);
         const std::vector<std::unique_ptr<FunctionType>>* getFunction(const std::string& name, const std::vector<std::string>& ns_hierarchy={});
         const std::vector<std::string>& getNamespaceHierarchy();
         //void addClassTemplate(ClassTemplate template_);

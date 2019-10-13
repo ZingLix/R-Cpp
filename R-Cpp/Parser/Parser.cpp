@@ -852,9 +852,18 @@ void Parser::print() {
 }
 
 void Parser::convertToLLVM() {
-    //for (auto& expr : classDecls_) {
-    //    expr.
-    //}
+    for (auto& expr : classDecls_) {
+        expr->toLLVM(&context_);
+    }
+    for(auto& func:functionDecls_)
+    {
+        func->toLLVM(&context_);
+    }
+}
+
+ASTContext& Parser::context()
+{
+    return context_;
 }
 
 

@@ -373,5 +373,14 @@ void Parse::ClassDecl::toLLVM(ASTContext* context)
 
 void Parse::FunctionDecl::toLLVM(ASTContext* context)
 {
-    
+    std::vector<std::pair<Type*, std::string>> arglist;
+    for (auto& p : args_) {
+        p.first->toLLVMAST(context);
+        auto type = p.first->getType();
+        arglist.emplace_back(type, p.second);
+    }
+    auto retType = retType_->toLLVMAST(context);
+    auto fn =context->addFuncPrototype(funcName_, std::move(arglist), retType_->getType(), isExternal_);
+    auto body = body_->toBlockExprAST(context);
+    context->setFuncBody(fn, std::move(body));
 }
