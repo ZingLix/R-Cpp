@@ -16,7 +16,7 @@
 
 using namespace CG;
 
-CodeGenerator::CodeGenerator(Parse::Parser& p):parser_(p), Builder(TheContext), TheModule(std::make_unique<llvm::Module>("RCpp", context())),
+CodeGenerator::CodeGenerator(Parse::Parser& p):context_(p.context()), Builder(TheContext), TheModule(std::make_unique<llvm::Module>("RCpp", context())),
                                 TheFPM(std::make_unique<llvm::legacy::FunctionPassManager>(TheModule.get())),st_(*this)
 {
     // Promote allocas to registers.
@@ -101,21 +101,46 @@ void CodeGenerator::output() {
     std::cout << "output to: " << Filename << std::endl;
 }
 
+llvm::Type* CodeGenerator::getBuiltinType(const std::string& s)
+{
+    if (s == "i32") return llvm::Type::getInt32Ty(this->context());
+    if (s == "i64") return llvm::Type::getInt64Ty(this->context());
+    if (s == "u32") return llvm::Type::getInt32Ty(this->context());
+    if (s == "u64") return llvm::Type::getInt64Ty(this->context());
+    if (s == "bool") return llvm::Type::getInt1Ty(this->context());
+    if (s == "float") return llvm::Type::getFloatTy(this->context());
+    if (s == "double") return llvm::Type::getDoubleTy(this->context());
+    if (s == "void") return llvm::Type::getVoidTy(this->context());
+    return nullptr;
+}
+
+llvm::Value* CodeGenerator::getBuiltinTypeDefaultValue(const std::string& s)
+{
+    if (s == "i32") return llvm::ConstantInt::get(this->context(), llvm::APInt(32, 0, true));
+    if (s == "i64") return llvm::ConstantInt::get(this->context(), llvm::APInt(64, 0, true));
+    if (s == "u32") return llvm::ConstantInt::get(this->context(), llvm::APInt(32, 0, false));
+    if (s == "u64") return llvm::ConstantInt::get(this->context(), llvm::APInt(32, 0, false));
+    if (s == "bool") return llvm::ConstantInt::get(this->context(), llvm::APInt(1, 0, false));
+    if (s == "float") return llvm::ConstantFP::get(this->context(), llvm::APFloat(0.0));
+    if (s == "double") return llvm::ConstantFP::get(this->context(), llvm::APFloat(0.0));
+    return nullptr;
+}
+
 void CodeGenerator::generate()
 {
-    for(auto& c:parser_.Classes())
+    for(auto& c: *context_.Class())
     {
         c->generateCode(*this)->print(llvm::errs());
         std::cout << std::endl;
     }
-    for(auto& p:parser_.Prototypes())
+    for(auto& p: *context_.Prototype())
     {
         p->generateCode(*this)->print(llvm::errs());
     }
-    for (auto& c : parser_.Classes()) {
-        c->generateFunction_new(*this)->print(llvm::errs());
-    }
-    for(auto& f:parser_.AST())
+    //for (auto& c : context_.Classes()) {
+    //    c->generateFunction_new(*this)->print(llvm::errs());
+    //}
+    for(auto& f: *context_.Function())
     {
         f->generateCode(*this)->print(llvm::errs());
     }

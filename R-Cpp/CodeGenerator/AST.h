@@ -5,23 +5,21 @@
 #include "../Util/Operator.h"
 #include <llvm/IR/Value.h>
 #include "../Util/Type.h"
+#include <llvm/IR/Instructions.h>
+#include "../Parser/Type.h"
 
 class ExprAST
 {
 public:
-    ExprAST(const VarType& s) :type(s) {}
-    VarType getType()
+    ExprAST(const std::string& s) :type(s) {}
+    std::string getType()
     {
         return type;
-    }
-    std::string getTypeName()
-    {
-        return type.typeName;
     }
     virtual ~ExprAST() = default;
     virtual llvm::Value* generateCode(CG::CodeGenerator& cg) =0;
 protected:
-    VarType type;
+    std::string type;
 };
 
 class AllocAST
@@ -56,7 +54,7 @@ private:
 class VariableExprAST:public ExprAST,public AllocAST
 {
 public:
-    VariableExprAST(const std::string& n, const VarType& t);
+    VariableExprAST(const std::string& n, const std::string& t);
     llvm::Value* generateCode(CG::CodeGenerator& cg) override;
     std::string getName() { return name; }
 
@@ -68,7 +66,7 @@ private:
 class NamelessVarExprAST:public ExprAST,public AllocAST
 {
 public:
-    NamelessVarExprAST(const std::string Name,const VarType& Type, const std::string& Constructor,std::vector<std::unique_ptr<ExprAST>> Args)
+    NamelessVarExprAST(const std::string Name,const std::string& Type, const std::string& Constructor,std::vector<std::unique_ptr<ExprAST>> Args)
         :ExprAST(Type), name(Name),constructor(Constructor),args(std::move(Args))
     { }
     llvm::Value* generateCode(CG::CodeGenerator& cg) override;
@@ -81,7 +79,7 @@ private:
 class BlockExprAST :public ExprAST
 {
 public:
-    BlockExprAST(std::vector<std::unique_ptr<ExprAST>> expr, bool hasReturnStatement ,const VarType& t=VarType("void"))
+    BlockExprAST(std::vector<std::unique_ptr<ExprAST>> expr, bool hasReturnStatement ,const std::string& t="void")
         :ExprAST(t), expr_(std::move(expr)),hasReturn_(hasReturnStatement) {}
     llvm::Value* generateCode(CG::CodeGenerator& cg);
     std::vector<std::unique_ptr<ExprAST>>& instructions();
@@ -98,7 +96,7 @@ class IfExprAST :public ExprAST
 public:
     IfExprAST(std::unique_ptr<ExprAST> condition,
         std::unique_ptr<BlockExprAST> then, std::unique_ptr<BlockExprAST> els)
-        :ExprAST(VarType("null")), Cond(std::move(condition)),Then(std::move(then)),
+        :ExprAST("void"), Cond(std::move(condition)),Then(std::move(then)),
         /*ElseIf(nullptr),*/ Else(std::move(els))
     { }
     //IfExprAST(std::unique_ptr<ExprAST> condition,
@@ -109,7 +107,7 @@ public:
     //}
     IfExprAST(std::unique_ptr<ExprAST> condition,
         std::unique_ptr<BlockExprAST> then)
-        :ExprAST(VarType("null")), Cond(std::move(condition)), Then(std::move(then)),
+        :ExprAST("void"), Cond(std::move(condition)), Then(std::move(then)),
         /*ElseIf(nullptr),*/ Else(nullptr) {
     }
     llvm::Value* generateCode(CG::CodeGenerator& cg) override;
@@ -152,7 +150,7 @@ class ReturnAST:public ExprAST
 public:
     ReturnAST(std::unique_ptr<ExprAST> returnValue, std::vector<std::unique_ptr<ExprAST>> destructorExpr);
     llvm::Value* generateCode(CG::CodeGenerator& cg) override;
-
+    
 private:
     std::unique_ptr<ExprAST> ret_val_;
     std::vector<std::unique_ptr<ExprAST>> destructor_expr_;
@@ -174,7 +172,7 @@ class ForExprAST:public ExprAST
 public:
     ForExprAST(std::unique_ptr<ExprAST> start, std::unique_ptr<ExprAST> cond,
         std::unique_ptr<ExprAST> end, std::unique_ptr<BlockExprAST> body)
-        :ExprAST(VarType("null")), Start(std::move(start)),Cond(std::move(cond)),
+        :ExprAST("null"), Start(std::move(start)),Cond(std::move(cond)),
          End(std::move(end)),Body(std::move(body))
     { }
     llvm::Value* generateCode(CG::CodeGenerator& cg) override;
@@ -187,7 +185,7 @@ private:
 class CallExprAST:public ExprAST
 {
 public:
-    CallExprAST(const std::string& callee, std::vector<std::unique_ptr<ExprAST>> args, const VarType& t);
+    CallExprAST(const std::string& callee, std::vector<std::unique_ptr<ExprAST>> args, const std::string& t);
     llvm::Value* generateCode(CG::CodeGenerator& cg) override; 
     void setThis(std::unique_ptr<ExprAST> This);
     const std::string& getName() { return Callee; }
@@ -247,10 +245,12 @@ class ClassAST
 {
     std::string name_;
     std::vector<std::pair<std::string, std::string>> members_;
+    Parse::Type* type_;
 
 public:
-    ClassAST(const std::string& name, std::vector<std::pair<std::string, std::string>> members)
-        : name_(name),members_(std::move(members))
+    ClassAST(const std::string& name, std::vector<std::pair<std::string, std::string>> members,
+        Parse::Type* type)
+        : name_(name),members_(std::move(members)),type_(type)
     {
     }
 
@@ -265,7 +265,7 @@ class MemberAccessAST:public ExprAST,public AllocAST
 
 public:
     MemberAccessAST(std::unique_ptr<ExprAST> Var, int index,
-                    const VarType& retType);
+                    const std::string& retType);
     llvm::Value* generateCode(CG::CodeGenerator& cg) override;
 };
 
@@ -276,10 +276,10 @@ class UnaryExprAST:public ExprAST,public AllocAST
     std::vector<std::unique_ptr<ExprAST>> args;
 
 public:
-    UnaryExprAST(std::unique_ptr<ExprAST> var,OperatorType Op, std::vector<std::unique_ptr<ExprAST>> Args, const VarType& type)
+    UnaryExprAST(std::unique_ptr<ExprAST> var,OperatorType Op, std::vector<std::unique_ptr<ExprAST>> Args, const std::string& type)
         :ExprAST(type),expr(std::move(var)),op(Op),args(std::move(Args))
     { }
-    UnaryExprAST(std::unique_ptr<ExprAST> var, OperatorType Op,const VarType& type)
+    UnaryExprAST(std::unique_ptr<ExprAST> var, OperatorType Op,const std::string& type)
         :ExprAST(type),expr(std::move(var)), op(Op), args()
     { }
     llvm::Value* generateCode(CG::CodeGenerator& cg) override;
@@ -289,7 +289,7 @@ class NamespaceExprAST:public ExprAST
 {
     std::string name_;
 public:
-    NamespaceExprAST(std::string name):ExprAST(VarType("null")),name_(name){}
+    NamespaceExprAST(std::string name):ExprAST("null"),name_(name){}
     llvm::Value* generateCode(CG::CodeGenerator& cg) override;
     std::string getName() { return name_; }
 };
@@ -297,6 +297,6 @@ public:
 class NonExprAST :public ExprAST
 {
 public:
-    NonExprAST() :ExprAST(VarType("null")) {}
+    NonExprAST() :ExprAST("null") {}
     llvm::Value* generateCode(CG::CodeGenerator& cg) override;
 };

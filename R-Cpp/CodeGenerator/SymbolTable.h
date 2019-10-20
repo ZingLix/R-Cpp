@@ -5,9 +5,18 @@
 #include <llvm/IR/Instructions.h>
 
 namespace CG {
+    class CodeGenerator;
+
     struct ClassSymbol
     {
-        llvm::StructType* type;
+        ClassSymbol():type(nullptr)
+        { }
+
+        ClassSymbol(llvm::Type* type)
+            :type(type)
+        {}
+
+        llvm::Type* type;
         // <type, name>
         std::vector<std::pair<std::string, std::string>> members;
     };
@@ -18,6 +27,7 @@ namespace CG {
         SymbolTable(CodeGenerator&cg):cg_(cg)
         {
             createScope();
+            generateBuiltinType();
         }
         void createScope() {
             var_map_.emplace_back();
@@ -67,40 +77,7 @@ namespace CG {
             function_map_[name] = func;
         }
 
-        llvm::Type* getType(const std::string& name)
-        {
-            if(name.find("__ptr")==0)
-            {
-                size_t pos = 6;
-                assert(name[pos] == 'T');
-                size_t count = 0;
-                while (isdigit(name[++pos])) {
-                    count = count * 10 + name[pos] - '0';
-                }
-                std::string type(name.begin() + pos, name.end());
-                return llvm::PointerType::getUnqual(getType(type));
-            }
-            if(name.find("__arr")==0)
-            {
-                size_t pos = 6;
-                assert(name[pos] == 'T');
-                size_t count = 0;
-                while(isdigit(name[++pos]))
-                {
-                    count = count * 10 + name[pos] - '0';
-                }
-                std::string type(name.begin() + pos, name.begin() + pos + count);
-                pos += count;
-                assert(name[pos] == 'I');
-                std::string amount(name.begin() + pos + 1, name.end());
-                return llvm::ArrayType::get(getType(type), std::stoi(amount));
-            }
-            if(is_builtin_type(name))
-            {
-                return get_builtin_type(name, cg_);
-            }
-            return class_map_[name].type;
-        }
+        llvm::Type* getType(const std::string& name);
 
         void setType(const std::string& name,llvm::StructType* type)
         {
@@ -118,6 +95,8 @@ namespace CG {
         }
 
     private:
+        void generateBuiltinType();
+
         CodeGenerator& cg_;
         std::map<std::string, llvm::Function*> function_map_;
         std::map<std::string, ClassSymbol> class_map_;

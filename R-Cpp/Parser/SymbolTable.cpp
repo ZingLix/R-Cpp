@@ -3,9 +3,16 @@
 
 using namespace Parse;
 
-SymbolTable::SymbolTable(Parser& p):parser_(p), helper_("",nullptr),cur_namespace_(&helper_)
+SymbolTable::SymbolTable():helper_("",nullptr),cur_namespace_(&helper_)
 {
     createScope();
+    for(auto& s:BuiltinType::builtinTypeSet())
+    {
+        helper_.namedType.emplace(s,std::make_unique<BuiltinType>(s));
+    }
+    std::vector<std::pair<std::string, std::string>> typelist;
+    typelist.emplace_back("Any", "T");
+    helper_.classTemplate.emplace("__ptr",ClassTemplate("__ptr",typelist));
 }
 
 void SymbolTable::createScope()
@@ -34,72 +41,83 @@ void SymbolTable::destroyNamespace()
 }
 
 
-Variable SymbolTable::getValue(const std::string& name)
+Variable* SymbolTable::getVariable(const std::string& name)
 {
     for (auto it = named_values_.rbegin(); it != named_values_.rend(); ++it)
     {
         auto t = it->find(name);
-        if (t != it->end()) return t->second;
+        if (t != it->end()) return t->second.get();
     }
-    return {};
+    return nullptr;
 }
 
-void SymbolTable::setValue(const std::string& name, Variable val)
+void SymbolTable::addVariable(Type* type, const std::string& name)
 {
-    named_values_.back()[name] = val;
+    named_values_.back()[name] = std::make_unique<Variable>(type,name);
     named_values_seq_.back().push_back(name);
 }
 
-bool SymbolTable::hasType(const std::string& t) {
-    if(!is_builtin_type(t))
-        return getClass(t).type.typeName != ""||getClassTemplate(t).type.typeName!="";
-    return true;
-}
-
-void SymbolTable::addClass(const std::string& name, Class c)
+CompoundType* SymbolTable::addType(const std::string& name, std::vector<std::pair<Type*, std::string>> memberList)
 {
-    c.type.namespaceHierarchy = ns_hierarchy_;
-    cur_namespace_->namedClass[name] = std::move(c);
+    auto type = std::make_unique<CompoundType>(name, std::move(memberList));
+    type->setNamespaceHierarchy(cur_namespace_);
+    cur_namespace_->namedType[name] = std::move(type);
+    return dynamic_cast<CompoundType*>(cur_namespace_->namedType[name].get());
 }
 
-Class SymbolTable::getClass(const std::string& t)
+Type* SymbolTable::getType(const std::string& t, const std::vector<Type*>& args)
 {
     NamespaceHelper* ns = cur_namespace_;
-    while (ns!=nullptr)
+    if(args.size()==0)
     {
-        auto it = ns->namedClass.find(t);
-        if (it != ns->namedClass.end()) return it->second;
-        ns = ns->lastNS;
+        while (ns != nullptr) {
+            auto it = ns->namedType.find(t);
+            if (it != ns->namedType.end()) return it->second.get();
+            ns = ns->lastNS;
+        }
+        ns = cur_namespace_;
+        while (ns != nullptr) {
+            auto it = ns->namedFunction.find(t);
+            if (it != ns->namedFunction.end()) {   //find by name
+                return it->second[0].get();
+            }
+            ns = ns->lastNS;
+        }
     }
-    return {};
-}
-
-VarType SymbolTable::getClassMemberType(const std::string& classType, const std::string& memberName)
-{
-    auto c = getClass(classType);
-    for(auto& v:c.memberVariables)
+    else
     {
-        if (v.name == memberName) return v.type;
+        while (ns != nullptr) {
+            auto it = ns->classTemplate.find(t);
+            if (it != ns->classTemplate.end()) 
+            {   //find by name
+                if(it->second.typeList.size()==args.size())
+                {   // check if the arg size is same
+                    for(auto&p:it->second.instantiatedType)
+                    {   // check if has been instantiated
+                        if(p.first==args)
+                        {
+                            return p.second.get();
+                        }
+                    }
+                    //instantiate template
+                    return it->second.instantiate(args);
+                }
+            }
+            ns = ns->lastNS;
+        }
     }
-    return VarType("");
+    return nullptr;
 }
 
-int SymbolTable::getClassMemberIndex(const std::string& className, const std::string& memberName)
+FunctionType* SymbolTable::addFunction(const std::string& name, std::vector<std::pair<Type*, std::string>> argList, Type* returnType, bool isExternal)
 {
-    auto c = getClass(className);
-    for(auto it=c.memberVariables.begin();it!=c.memberVariables.end();++it)
-    {
-        if (it->name == memberName) return it - c.memberVariables.begin();
-    }
-    return -1;
+    auto fn = std::make_unique<FunctionType>(name, std::move(argList), returnType, nullptr, isExternal);
+    auto ret = fn.get();
+    cur_namespace_->namedFunction[name].push_back(std::move(fn));
+    return ret;
 }
 
-void SymbolTable::addFunction(const ::Function& func)
-{
-    cur_namespace_->namedFunction[func.name].push_back(func);
-}
-
-const std::vector<Function>* SymbolTable::getFunction(const std::string& name, const std::vector<std::string>& ns_hierarchy)
+const std::vector<std::unique_ptr<FunctionType>>* SymbolTable::getFunction(const std::string& name, const std::vector<std::string>& ns_hierarchy)
 {
     auto cur = cur_namespace_;
     while (cur!=nullptr)
@@ -116,7 +134,7 @@ const std::vector<std::string>& SymbolTable::getNamespaceHierarchy()
     return ns_hierarchy_;
 }
 
-const std::vector<Function>* SymbolTable::getRawFunction_(const std::string& name, const std::vector<std::string>& ns_hier,NamespaceHelper* ns)
+const std::vector<std::unique_ptr<FunctionType>>* SymbolTable::getRawFunction_(const std::string& name, const std::vector<std::string>& ns_hier,NamespaceHelper* ns)
 {
     for(size_t i=0;i<ns_hier.size();++i)
     {
@@ -126,95 +144,84 @@ const std::vector<Function>* SymbolTable::getRawFunction_(const std::string& nam
     return &(ns->namedFunction[name]);
 }
 
-void SymbolTable::addClassTemplate(ClassTemplate template_)
-{
-    cur_namespace_->classTemplate[template_.type.typeName] = std::move(template_);
-}
-
-ClassTemplate SymbolTable::getClassTemplate(std::string name)
-{
-    auto cur = cur_namespace_;
-    while (cur != nullptr) {
-        auto t = getClassTemplate_(name, cur);
-        if (t.token.size() != 0) return t;
-        cur = cur->lastNS;
-    }
-    return {};
-}
-
-ClassTemplate SymbolTable::getClassTemplate_(std::string name, NamespaceHelper* ns)
-{
-    return ns->classTemplate[name];
-}
-
-VarType SymbolTable::getVarType(VarType type)
-{
-    if (is_builtin_type(type.typeName)) return type;
-    auto cur = cur_namespace_;
-    while (cur != nullptr) {
-        auto v = cur->alias[type];
-        if (v.typeName != "") return v;
-        cur = cur->lastNS;
-    }
-    return type;
-}
-
-void SymbolTable::setAlias(VarType newType, VarType oldType)
-{
-    cur_namespace_->alias[newType] = oldType;
-}
+//void SymbolTable::addClassTemplate(ClassTemplate template_)
+//{
+//    cur_namespace_->classTemplate[template_.type.typeName] = std::move(template_);
+//}
+//
+//ClassTemplate SymbolTable::getClassTemplate(std::string name)
+//{
+//    auto cur = cur_namespace_;
+//    while (cur != nullptr) {
+//        auto t = getClassTemplate_(name, cur);
+//        if (t.token.size() != 0) return t;
+//        cur = cur->lastNS;
+//    }
+//    return {};
+//}
+//
+//ClassTemplate SymbolTable::getClassTemplate_(std::string name, NamespaceHelper* ns)
+//{
+//    return ns->classTemplate[name];
+//}
 
 
-std::string SymbolTable::getMangledClassName(VarType type)
+void SymbolTable::setAlias(const std::string& newName, Type* oldType)
 {
-    auto v = getVarType(type);
-    if (v.typeName != "") type=v;
-    if (is_builtin_type(type.typeName)) return type.typeName;
-    auto name = VarType::mangle(type);
-    auto c = getClass(name);
-    if (c.type.typeName != "") return name;
-    if(type.templateArgs.size()!=0)
-    {
-        auto t = getClassTemplate(type.typeName);
-        parser_.InstantiateTemplate(type,t);
-        return name;
-    }
-    return "";
+    cur_namespace_->alias[newName] = oldType;
 }
 
-void SymbolTable::callDestructorForCurScope(BlockExprAST* block)
-{
-    for (auto it = named_values_seq_.back().rbegin(); it != named_values_seq_.back().rend(); ++it) {
-        auto& v = named_values_.back()[*it];
-        if (!is_builtin_type(v.type.typeName))
-            block->instructions().push_back(parser_.callDestructor(v));
-    }
-}
+//
+//std::string SymbolTable::getMangledClassName(VarType type)
+//{
+//    auto v = getVarType(type);
+//    if (v.typeName != "") type=v;
+//    if (is_builtin_type(type.typeName)) return type.typeName;
+//    auto name = VarType::mangle(type);
+//    auto c = getClass(name);
+//    if (c.type.typeName != "") return name;
+//    if(type.templateArgs.size()!=0)
+//    {
+//        auto t = getClassTemplate(type.typeName);
+//        //parser_.InstantiateTemplate(type,t);
+//        return name;
+//    }
+//    return "";
+//}
 
-std::vector<std::unique_ptr<ExprAST>> SymbolTable::callDestructor()
-{
-    std::vector<std::unique_ptr<ExprAST>> exprs;
-    auto valmap = named_values_.rbegin();
-    for (auto scope = named_values_seq_.rbegin();
-        scope != named_values_seq_.rend(); ++scope,++valmap)
-    {
-        for (auto it = scope->rbegin(); it != scope->rend(); ++it) {
-            auto& v = (*valmap)[*it];
-            if (!is_builtin_type(v.type.typeName))
-                exprs.push_back(parser_.callDestructor(v));
-        }
-    }
-    return exprs;
-}
+//void SymbolTable::callDestructorForCurScope(BlockExprAST* block)
+//{
+//    for (auto it = named_values_seq_.back().rbegin(); it != named_values_seq_.back().rend(); ++it) {
+//        auto& v = named_values_.back()[*it];
+//        if (!is_builtin_type(v.type.typeName))
+//            block->instructions().push_back(parser_.callDestructor(v));
+//    }
+//}
 
-void SymbolTable::callNamelessVarDestructor(std::vector<std::unique_ptr<ExprAST>>& exprs)
-{
-    for(auto&v:nameless_values_)
-    {
-        exprs.push_back(parser_.callDestructor(v));
-    }
-    nameless_values_.clear();
-}
+//std::vector<std::unique_ptr<ExprAST>> SymbolTable::callDestructor()
+//{
+//    std::vector<std::unique_ptr<ExprAST>> exprs;
+//    auto valmap = named_values_.rbegin();
+//    for (auto scope = named_values_seq_.rbegin();
+//        scope != named_values_seq_.rend(); ++scope,++valmap)
+//    {
+//        for (auto it = scope->rbegin(); it != scope->rend(); ++it) {
+//            auto& v = (*valmap)[*it];
+//            if (!is_builtin_type(v.type.typeName))
+//                exprs.push_back(parser_.callDestructor(v));
+//        }
+//    }
+//    return exprs;
+//}
+//
+//void SymbolTable::callNamelessVarDestructor(std::vector<std::unique_ptr<ExprAST>>& exprs)
+//{
+//    for(auto&v:nameless_values_)
+//    {
+//        exprs.push_back(parser_.callDestructor(v));
+//    }
+//    nameless_values_.clear();
+//}
 
 
 SymbolTable::ScopeGuard::ScopeGuard(SymbolTable& st): st_(st), block_(nullptr)
@@ -224,8 +231,8 @@ SymbolTable::ScopeGuard::ScopeGuard(SymbolTable& st): st_(st), block_(nullptr)
 
 SymbolTable::ScopeGuard::~ScopeGuard()
 {
-    if (block_ != nullptr)
-        st_.callDestructorForCurScope(block_);
+   // if (block_ != nullptr)
+        //st_.callDestructorForCurScope(block_);
     st_.destroyScope();
 }
 

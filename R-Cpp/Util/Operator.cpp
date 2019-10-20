@@ -257,3 +257,143 @@ bool isUnaryOperator(OperatorType t)
         t == OperatorType::LogicalNOT || t == OperatorType::BitwiseNOT ||
         t == OperatorType::Dereference;
 }
+
+std::ostream& operator<<(std::ostream& os, OperatorType op) {
+    switch (op) {
+    case OperatorType::ScopeResolution:
+        os << "ScopeResolution ::";
+        break;
+    case OperatorType::PostIncrement:
+        os << "PostIncrement ++";
+        break;
+    case OperatorType::PostDecrement:
+        os << "PostDecrement --";
+        break;
+    case OperatorType::FunctionCall:
+        os << "FunctionCall ()";
+        break;
+    case OperatorType::Subscript:
+        os << "Subscript []";
+        break;
+    case OperatorType::MemberAccessA:
+        os << "MemberAccess ->";
+        break;
+    case OperatorType::MemberAccessP:
+        os << "MemberAccess .";
+        break;
+    case OperatorType::PreIncrement:
+        os << "PreIncrement ++";
+        break;
+    case OperatorType::PreDecrement:
+        os << "PreDecrement --";
+        break;
+    case OperatorType::Promotion:
+        os << "Promotion +";
+        break;
+    case OperatorType::Negation:
+        os << "Negation -";
+        break;
+    case OperatorType::LogicalNOT:
+        os << "LogicalNot !";
+        break;
+    case OperatorType::BitwiseNOT:
+        os << "BitwiseNOT ~";
+        break;
+    case OperatorType::Dereference:
+        os << "Dereference *";
+        break;
+    case OperatorType::Multiplication:
+        os << "Multiplication *";
+        break;
+    case OperatorType::Division:
+        os << "Division /";
+        break;
+    case OperatorType::Remainder:
+        os << "Remainder %";
+        break;
+    case OperatorType::Addition:
+        os << "Addition +";
+        break;
+    case OperatorType::Subtraction:
+        os << "Subtraction -";
+        break;
+    case OperatorType::LeftShift:
+        os << "LeftShift <<";
+        break;
+    case OperatorType::RightShift:
+        os << "RightShift >>";
+        break;
+    case OperatorType::Less:
+        os << "Less <";
+        break;
+    case OperatorType::LessEqual:
+        os << "LessEqual <=";;
+        break;
+    case OperatorType::Greater:
+        os << "Greater >";
+        break;
+    case OperatorType::GreaterEqual:
+        os << "GreaterEqual >=";
+        break;
+    case OperatorType::Equal:
+        os << "Equal ==";
+        break;
+    case OperatorType::NotEqual:
+        os << "NotEqual !=";
+        break;
+    case OperatorType::BitwiseAND:
+        os << "BitwiseAND &";
+        break;
+    case OperatorType::BitwiseXOR:
+        os << "BitwiseXOR ^";
+        break;
+    case OperatorType::BitwiseOR:
+        os << "BitwiseOR |";
+        break;
+    case OperatorType::LogicalAND:
+        os << "LogicalAND &&";
+        break;
+    case OperatorType::LogicalOR:
+        os << "LogicalOR ||";
+        break;
+    case OperatorType::Assignment:
+        os << "Assignment =";
+        break;
+    case OperatorType::SumComAssign:
+        os << "SumCompoundAssignment +=";
+        break;
+    case OperatorType::MinComAssign:
+        os << "MinusCompoundAssignment -=";
+        break;
+    case OperatorType::MulComAssign:
+        os << "MultiplyCompoundAssignment *=";
+        break;
+    case OperatorType::DivComAssign:
+        os << "DivisionCompoundAssignment /=";
+        break;
+    case OperatorType::RemComAssign:
+        os << "RemainderCompoundAssignment %=";
+        break;
+    case OperatorType::LshComAssign:
+        os << "LeftShiftCompoundAssignment <<=";
+        break;
+    case OperatorType::RshComAssign:
+        os << "RightShiftCompoundAssignment >>=";
+        break;
+    case OperatorType::ANDComAssign:
+        os << "ANDCompoundAssignment &=";
+        break;
+    case OperatorType::XORComAssign:
+        os << "XORCompoundAssignment ^=";
+        break;
+    case OperatorType::ORComAssign:
+        os << "ORCompoundAssignment |=";
+        break;
+    case OperatorType::Comma:
+        os << "Comma ,";
+        break;
+    default:
+        os << "<Unknown Operator>";
+    }
+    return os;
+}

@@ -13,6 +13,8 @@ int main(int argc,char **argv)
     Parse::Parser l(argv[1]); 
 //    Parse::Parser l("/home/zinglix/example.txt");
     l.MainLoop();
+    l.print();
+    l.convertToLLVM();
     CG::CodeGenerator cg(l);
     cg.generate();
     return 0;
