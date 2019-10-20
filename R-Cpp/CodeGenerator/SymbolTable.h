@@ -9,7 +9,14 @@ namespace CG {
 
     struct ClassSymbol
     {
-        llvm::StructType* type;
+        ClassSymbol():type(nullptr)
+        { }
+
+        ClassSymbol(llvm::Type* type)
+            :type(type)
+        {}
+
+        llvm::Type* type;
         // <type, name>
         std::vector<std::pair<std::string, std::string>> members;
     };
@@ -20,6 +27,7 @@ namespace CG {
         SymbolTable(CodeGenerator&cg):cg_(cg)
         {
             createScope();
+            generateBuiltinType();
         }
         void createScope() {
             var_map_.emplace_back();
@@ -87,6 +95,8 @@ namespace CG {
         }
 
     private:
+        void generateBuiltinType();
+
         CodeGenerator& cg_;
         std::map<std::string, llvm::Function*> function_map_;
         std::map<std::string, ClassSymbol> class_map_;

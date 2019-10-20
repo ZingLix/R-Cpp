@@ -46,15 +46,32 @@ namespace Parse
     {
     public:
         BuiltinType(const std::string& typeName, std::vector<Type*> typelist = {})
-            :Type(typeName)
+            :Type(typeName, std::move(typelist))
         {
-            if (builtinTypeSet_.find(typeName) == builtinTypeSet_.end())
-                throw std::logic_error(typeName+ " is not builtin type.");
+            //if (builtinTypeSet_.find(typeName) == builtinTypeSet_.end())
+            //    throw std::logic_error(typeName+ " is not builtin type.");
         }
 
         std::string mangledName() override
         {
-            return getTypename();
+            auto res = getTypename();
+            if (typelist_.size() != 0) {
+                res += "_";
+                for (auto& v : typelist_) {
+                    auto m = v->mangledName();
+                    if (isdigit(m[0])) {
+                        res += "I" + m;
+                    } else {
+                        res += "T" + std::to_string(m.length()) + m;
+                    }
+                }
+            }
+            return res;
+        }
+
+        static const std::set<std::string>& builtinTypeSet()
+        {
+            return builtinTypeSet_;
         }
     private:
         static const std::set<std::string> builtinTypeSet_;
@@ -109,17 +126,17 @@ namespace Parse
         std::string mangledName() override
         {
             auto res = getTypename();
-            //if (type.templateArgs.size() != 0) {
-            //    res += "_";
-            //    for (auto& v : type.templateArgs) {
-            //        auto m = mangle(v);
-            //        if (isdigit(m[0])) {
-            //            res += "I" + m;
-            //        } else {
-            //            res += "T" + std::to_string(m.length()) + mangle(v);
-            //        }
-            //    }
-            //}
+            if (typelist_.size() != 0) {
+                res += "_";
+                for (auto& v : typelist_) {
+                    auto m = v->mangledName();
+                    if (isdigit(m[0])) {
+                        res += "I" + m;
+                    } else {
+                        res += "T" + std::to_string(m.length()) + m;
+                    }
+                }
+            }
             return res;
         }
         Type* getMemberType(const std::string& name)

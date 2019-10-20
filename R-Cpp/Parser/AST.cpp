@@ -110,10 +110,30 @@ void Parse::BinaryOperatorStmt::print(std::string indent, bool last) {
 std::unique_ptr<ExprAST> Parse::BinaryOperatorStmt::toLLVMAST(ASTContext* context)
 {
     auto l = lhs_->toLLVMAST(context);
+    if(op_==OperatorType::MemberAccessP)
+    {
+        auto type = dynamic_cast<CompoundType*>(context->symbolTable().getType(l->getType()));
+        if(!type)
+        {
+            throw std::logic_error("Invalid member access.");
+        }
+        auto r = dynamic_cast<VariableStmt*>(rhs_.get());
+        auto index = type->getMemberIndex(r->getName());
+        type_ = type->getMemberType(r->getName());
+        
+        return std::make_unique<MemberAccessAST>(std::move(l), index, type_->mangledName());
+    }
     auto r = rhs_->toLLVMAST(context);
     if(lhs_->getType()!=rhs_->getType())
     {
         throw std::logic_error("No suitable binary operator between "+lhs_->getType()->getTypename()+" and "+rhs_->getType()->getTypename()+".");
+    }
+    if(op_==OperatorType::Assignment)
+    {
+        type_ = context->symbolTable().getType("void");
+    }else
+    {
+        type_ = lhs_->getType();
     }
     return std::make_unique<BinaryExprAST>(op_, std::move(l), std::move(r),l->getType());
 }
@@ -147,14 +167,9 @@ std::unique_ptr<ExprAST> Parse::UnaryOperatorStmt::toLLVMAST(ASTContext* context
     {
         argsExpr.push_back(arg->toLLVMAST(context));
     }
-    if(expr==nullptr&&op_==OperatorType::FunctionCall) {
-
-        auto fnName = dynamic_cast<VariableStmt*>(stmt_.get());
-        if(!fnName)
-        {
-            throw std::logic_error("Is not a callable object.");
-        }
-        auto fnList = context->symbolTable().getFunction(fnName->getName());
+    auto fn = dynamic_cast<FunctionType*>(stmt_->getType());
+    if(fn &&op_==OperatorType::FunctionCall) {
+        auto fnList = context->symbolTable().getFunction(fn->getTypename());
         FunctionType* target=nullptr;
         for (auto& f : *fnList) {
             bool flag = true;
@@ -173,8 +188,10 @@ std::unique_ptr<ExprAST> Parse::UnaryOperatorStmt::toLLVMAST(ASTContext* context
         if (!target) {
             throw std::logic_error("No suitable function.");
         }
+        type_ = target->returnType();
         return std::make_unique<CallExprAST>(target->mangledName(), std::move(argsExpr), target->returnType()->mangledName());
     }
+    throw std::logic_error("No suitable unary operation.");
 }
 
 Parse::VariableDefStmt::VariableDefStmt(std::unique_ptr<Stmt> type, const std::string& name)
@@ -187,7 +204,7 @@ void Parse::VariableDefStmt::setInitValue(std::unique_ptr<Stmt> initVal) {
 
 void Parse::VariableDefStmt::print(std::string indent, bool last) {
     std::cout << indent << "+-VariableDefStmt " << name_ << " ";
-    vartype_->print(indent, last);
+    std::cout << dynamic_cast<TypeStmt*>(vartype_.get())->getName();
     std::cout << std::endl;
     indent += last ? "  " : "| ";
     if (init_val_)
@@ -209,6 +226,48 @@ std::unique_ptr<ExprAST> Parse::VariableDefStmt::toLLVMAST(ASTContext* context) 
         return std::make_unique<VariableDefAST>(t->getType()->mangledName(), name_);
     }
 
+}
+
+Parse::TypeStmt::
+TypeStmt(const std::string& name, std::vector<std::unique_ptr<Stmt>> arglist): name_(name), arglist_(std::move(arglist))
+{
+}
+
+void Parse::TypeStmt::print(std::string indent, bool last)
+{
+    std::cout << indent << "+-Type/Function " << getName() << std::endl;
+}
+
+std::string Parse::TypeStmt::getName()
+{
+    std::string name = name_;
+    if (arglist_.size() != 0)
+    {
+        name += "<";
+        for (size_t i = 0; i < arglist_.size(); ++i)
+        {
+            name += dynamic_cast<TypeStmt*>(arglist_[i].get())->getName();
+            if (i != arglist_.size() - 1) std::cout << ", ";
+        }
+        name += ">";
+    }
+    return name;
+}
+
+std::unique_ptr<ExprAST> Parse::TypeStmt::toLLVMAST(ASTContext* context)
+{
+    std::vector<Type*> typelist;
+    for(auto& stmt:arglist_)
+    {
+        stmt->toLLVMAST(context);
+        typelist.push_back(stmt->getType());
+    }
+    type_ = context->symbolTable().getType(name_, typelist);
+    if(!type_)
+    {
+        throw std::logic_error("Unknown type.");
+    }
+    return nullptr;
 }
 
 Parse::NamelessVariableStmt::
@@ -282,6 +341,11 @@ std::unique_ptr<ExprAST> Parse::VariableStmt::toLLVMAST(ASTContext* context) {
     return nullptr;
 }
 
+const std::string& Parse::VariableStmt::getName()
+{
+    return name_;
+}
+
 Parse::IntegerStmt::IntegerStmt(std::int64_t val): val_(val) {
 }
 
@@ -289,11 +353,23 @@ void Parse::IntegerStmt::print(std::string indent, bool last) {
     std::cout << indent << "+-IntegerStmt " << val_ << std::endl;
 }
 
+std::unique_ptr<ExprAST> Parse::IntegerStmt::toLLVMAST(ASTContext*c)
+{
+    type_ = c->symbolTable().getType("i32");
+    return std::make_unique<IntegerExprAST>(val_);
+}
+
 Parse::FloatStmt::FloatStmt(double val): val_(val) {
 }
 
 void Parse::FloatStmt::print(std::string indent, bool last) {
     std::cout << indent << "+-FloatStmt " << val_ << std::endl;
+}
+
+std::unique_ptr<ExprAST> Parse::FloatStmt::toLLVMAST(ASTContext* c)
+{
+    type_ = c->symbolTable().getType("float");
+    return std::make_unique<FloatExprAST>(val_);
 }
 
 Parse::FunctionDecl::FunctionDecl(std::string funcName,
@@ -306,12 +382,12 @@ Parse::FunctionDecl::FunctionDecl(std::string funcName,
 void Parse::FunctionDecl::print(std::string indent, bool last) {
     std::cout << indent << "+-Function " << funcName_ <<" (";
     for (auto it = args_.begin(); it != args_.end();++it) {
-        it->first->print(indent, last);
+        std::cout << dynamic_cast<TypeStmt*>(it->first.get())->getName();
         std::cout << " "<<it->second;
         if (it != args_.end() - 1) std::cout << ",";
     }
     std::cout << ") -> ";
-    retType_->print(indent, last);
+    std::cout << dynamic_cast<TypeStmt*>(retType_.get())->getName();
     if(isExternal_) {
         std::cout << " external" << std::endl;
     }else {
@@ -320,6 +396,11 @@ void Parse::FunctionDecl::print(std::string indent, bool last) {
     }
     //indent += last ? "  " : "| ";
 
+}
+
+void Parse::FunctionDecl::setBody(std::unique_ptr<CompoundStmt> body)
+{
+    body_ = std::move(body);
 }
 
 Parse::ClassDecl::ClassDecl(const std::string& name): name_(name) {
@@ -350,7 +431,7 @@ void Parse::ClassDecl::print(std::string indent, bool last) {
     auto extraindent = memberFunctions_.empty() ? "  " : "| ";
     for (auto& p : memberVariables_) {
         std::cout << indent << extraindent << "+-" << p.second << " " ;
-        p.first->print(indent, last);
+        std::cout << dynamic_cast<TypeStmt*>(p.first.get())->getName();
         std::cout << std::endl;
     }
     for (size_t i = 0; i < memberFunctions_.size(); ++i) {
@@ -371,6 +452,11 @@ void Parse::ClassDecl::toLLVM(ASTContext* context)
     
 }
 
+const std::vector<std::pair<std::unique_ptr<Parse::Stmt>, std::string>>& Parse::ClassDecl::getMemberVariables()
+{
+    return memberVariables_;
+}
+
 void Parse::FunctionDecl::toLLVM(ASTContext* context)
 {
     std::vector<std::pair<Type*, std::string>> arglist;
@@ -379,8 +465,19 @@ void Parse::FunctionDecl::toLLVM(ASTContext* context)
         auto type = p.first->getType();
         arglist.emplace_back(type, p.second);
     }
-    auto retType = retType_->toLLVMAST(context);
-    auto fn =context->addFuncPrototype(funcName_, std::move(arglist), retType_->getType(), isExternal_);
-    auto body = body_->toBlockExprAST(context);
-    context->setFuncBody(fn, std::move(body));
+    retType_->toLLVMAST(context);
+    {
+        SymbolTable::ScopeGuard guard(context->symbolTable());
+        for (auto& arg : arglist) {
+            context->symbolTable().addVariable(arg.first, arg.second);
+        }
+        auto fn = context->addFuncPrototype(funcName_, std::move(arglist), retType_->getType(), isExternal_);
+
+        if(!isExternal_)
+        {
+            auto body = body_->toBlockExprAST(context);
+            context->setFuncBody(fn, std::move(body));
+        }
+
+    }
 }

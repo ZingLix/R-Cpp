@@ -6,6 +6,13 @@ using namespace Parse;
 SymbolTable::SymbolTable():helper_("",nullptr),cur_namespace_(&helper_)
 {
     createScope();
+    for(auto& s:BuiltinType::builtinTypeSet())
+    {
+        helper_.namedType.emplace(s,std::make_unique<BuiltinType>(s));
+    }
+    std::vector<std::pair<std::string, std::string>> typelist;
+    typelist.emplace_back("Any", "T");
+    helper_.classTemplate.emplace("__ptr",ClassTemplate("__ptr",typelist));
 }
 
 void SymbolTable::createScope()
@@ -58,14 +65,46 @@ CompoundType* SymbolTable::addType(const std::string& name, std::vector<std::pai
     return dynamic_cast<CompoundType*>(cur_namespace_->namedType[name].get());
 }
 
-Type* SymbolTable::getType(const std::string& t)
+Type* SymbolTable::getType(const std::string& t, const std::vector<Type*>& args)
 {
     NamespaceHelper* ns = cur_namespace_;
-    while (ns!=nullptr)
+    if(args.size()==0)
     {
-        auto it = ns->namedType.find(t);
-        if (it != ns->namedType.end()) return it->second.get();
-        ns = ns->lastNS;
+        while (ns != nullptr) {
+            auto it = ns->namedType.find(t);
+            if (it != ns->namedType.end()) return it->second.get();
+            ns = ns->lastNS;
+        }
+        ns = cur_namespace_;
+        while (ns != nullptr) {
+            auto it = ns->namedFunction.find(t);
+            if (it != ns->namedFunction.end()) {   //find by name
+                return it->second[0].get();
+            }
+            ns = ns->lastNS;
+        }
+    }
+    else
+    {
+        while (ns != nullptr) {
+            auto it = ns->classTemplate.find(t);
+            if (it != ns->classTemplate.end()) 
+            {   //find by name
+                if(it->second.typeList.size()==args.size())
+                {   // check if the arg size is same
+                    for(auto&p:it->second.instantiatedType)
+                    {   // check if has been instantiated
+                        if(p.first==args)
+                        {
+                            return p.second.get();
+                        }
+                    }
+                    //instantiate template
+                    return it->second.instantiate(args);
+                }
+            }
+            ns = ns->lastNS;
+        }
     }
     return nullptr;
 }

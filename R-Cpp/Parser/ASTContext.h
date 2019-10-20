@@ -32,11 +32,11 @@ namespace Parse
         }
         FunctionType* addFuncPrototype(const std::string& name, std::vector<std::pair<Type*, std::string>> argList, Type* returnType, bool isExternal = false)
         {
-            auto fn = symbol_table_->addFunction(name, std::move(argList), returnType, isExternal);
             std::vector<std::pair<std::string, std::string>> members;
             for (auto& m : argList) {
                 members.emplace_back(m.first->mangledName(), m.second);
             }
+            auto fn = symbol_table_->addFunction(name, std::move(argList), returnType, isExternal);
             prototype_.push_back(std::make_unique<PrototypeAST>(fn->mangledName(), std::move(members), returnType->mangledName()));
             return fn;
         }

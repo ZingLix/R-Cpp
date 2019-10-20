@@ -375,7 +375,7 @@ llvm::StructType* ClassAST::generateCode(CodeGenerator& cg)
 {
     auto type = StructType::create(cg.context(), name_);
     cg.symbol().setType(name_,type);
-    std::vector<Type*> members;
+    std::vector<llvm::Type*> members;
     for(auto m:members_)
     {
         members.push_back(cg.symbol().getType(m.first));

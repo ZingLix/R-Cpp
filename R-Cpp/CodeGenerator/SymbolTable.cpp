@@ -1,4 +1,5 @@
 #include "SymbolTable.h"
+#include "CodeGenerator.h"
 
 llvm::Type* CG::SymbolTable::getType(const std::string& name)
 {
@@ -34,4 +35,16 @@ llvm::Type* CG::SymbolTable::getType(const std::string& name)
     //    return get_builtin_type(name, cg_);
     //}
     return class_map_[name].type;
+}
+
+void CG::SymbolTable::generateBuiltinType()
+{
+    class_map_["i32"] = ClassSymbol(llvm::Type::getInt32Ty(cg_.context()));
+    class_map_["i64"] = ClassSymbol(llvm::Type::getInt64Ty(cg_.context()));
+    class_map_["u32"] = ClassSymbol(llvm::Type::getInt32Ty(cg_.context()));
+    class_map_["u64"] = ClassSymbol(llvm::Type::getInt64Ty(cg_.context()));
+    class_map_["bool"] = ClassSymbol(llvm::Type::getInt1Ty(cg_.context()));
+    class_map_["float"] = ClassSymbol(llvm::Type::getFloatTy(cg_.context()));
+    class_map_["double"] = ClassSymbol(llvm::Type::getDoubleTy(cg_.context()));
+    class_map_["void"] = ClassSymbol(llvm::Type::getVoidTy(cg_.context()));
 }

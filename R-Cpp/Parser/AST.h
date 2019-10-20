@@ -127,24 +127,12 @@ namespace Parse
     class TypeStmt: public Stmt
     {
     public:
-        TypeStmt(const std::string& name, std::vector<std::unique_ptr<Stmt>> arglist={})
-            :name_(name),arglist_(std::move(arglist))
-        { }
-        void print(std::string indent, bool last) override
-        {
-            std::cout << name_;
-            if(arglist_.size()!=0)
-            {
-                std::cout << "<";
-                for(size_t i=0;i<arglist_.size();++i)
-                {
-                    arglist_[i]->print(indent, last);
-                    if(i!=arglist_.size()-1) std::cout << ", ";
-                }
-                std::cout << ">";
-            }
-        }
-        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override { return nullptr; }
+        TypeStmt(const std::string& name, std::vector<std::unique_ptr<Stmt>> arglist = {});
+
+        void print(std::string indent, bool last) override;
+
+        std::string getName();
+        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
         std::string name_;
         std::vector<std::unique_ptr<Stmt>> arglist_;
@@ -168,10 +156,7 @@ namespace Parse
         VariableStmt(const std::string& name);
         void print(std::string indent, bool last) override;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
-        const std::string& getName()
-        {
-            return name_;
-        }
+        const std::string& getName();
     private:
         std::string name_;
     };
@@ -181,9 +166,7 @@ namespace Parse
     public:
         IntegerStmt(std::int64_t val);
         void print(std::string indent, bool last) override;
-        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override {
-            return std::make_unique<IntegerExprAST>(val_);
-        }
+        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
         std::int64_t val_;
     };
@@ -193,9 +176,7 @@ namespace Parse
     public:
         FloatStmt(double val);
         void print(std::string indent, bool last) override;
-        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override {
-            return std::make_unique<FloatExprAST>(val_);
-        }
+        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
         double val_;
     };
@@ -214,10 +195,7 @@ namespace Parse
         std::unique_ptr<Stmt> retType ,
         std::unique_ptr<CompoundStmt> body = nullptr, bool isExternal=false);
         void print(std::string indent, bool last) override;
-        void setBody(std::unique_ptr<CompoundStmt> body)
-        {
-            body_ = std::move(body);
-        }
+        void setBody(std::unique_ptr<CompoundStmt> body);
         void toLLVM(ASTContext* context);
     private:
         std::string funcName_;
@@ -240,10 +218,7 @@ namespace Parse
         void print(std::string indent, bool last) override;
         const std::string& name() { return name_; }
         void toLLVM(ASTContext* context);
-        const std::vector<std::pair<std::unique_ptr<Stmt>, std::string>>& getMemberVariables()
-        {
-            return memberVariables_;
-        }
+        const std::vector<std::pair<std::unique_ptr<Stmt>, std::string>>& getMemberVariables();
 
     private:
         std::string name_;

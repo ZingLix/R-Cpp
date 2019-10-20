@@ -278,7 +278,7 @@ std::unique_ptr<Stmt> Parse::Parser::ParseVariableDefinition(const std::string& 
         assert(cur_token_.type == TokenType::lParenthesis);
         auto args = ParseParenExprList();
 
-        return std::make_unique<NamelessVariableStmt>(std::move(type), std::move(args));
+        return std::make_unique<UnaryOperatorStmt>(std::move(type),OperatorType::FunctionCall, std::move(args));
     }
 }
 

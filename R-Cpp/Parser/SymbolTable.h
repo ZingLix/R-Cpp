@@ -18,12 +18,26 @@ namespace Parse {
         std::string name_;
     };
 
-    //struct ClassTemplate
-    //{
-    //    VarType type;
-    //    std::vector<std::pair<VarType, std::string>> typeList;
-    //    std::vector<Token> token;
-    //};
+    struct ClassTemplate
+    {
+        ClassTemplate(const std::string& name,const std::vector<std::pair<std::string, std::string>>& typelist)
+            :name(name),typeList(typelist)
+        {
+            
+        }
+
+        std::string name;
+        std::vector<std::pair<std::string, std::string>> typeList;
+        std::vector<std::pair<std::vector<Type*>, std::unique_ptr<Type>>> instantiatedType;
+
+        Type* instantiate(const std::vector<Type*>& args)
+        {
+            auto type = std::make_unique<BuiltinType>(name, args);
+            auto ret = type.get();
+            instantiatedType.emplace_back(args, std::move(type));
+            return ret;
+        }
+    };
 
     struct NamespaceHelper
     {
@@ -40,7 +54,7 @@ namespace Parse {
         std::vector<NamespaceHelper*> insertedNS;
         std::map<std::string, std::vector<std::unique_ptr<FunctionType>>> namedFunction;
         std::map<std::string, std::unique_ptr<Type>> namedType;
-        //std::map<std::string, ClassTemplate> classTemplate;
+        std::map<std::string, ClassTemplate> classTemplate;
         std::map<std::string, Type*> alias;
         NamespaceHelper* lastNS;
     };
@@ -59,7 +73,7 @@ namespace Parse {
         Variable* getVariable(const std::string& name);
         void addVariable(Type*type, const std::string& name);
         CompoundType* addType(const std::string& name, std::vector<std::pair<Type*, std::string>> memberList);
-        Type* getType(const std::string& name);
+        Type* getType(const std::string& name,const std::vector<Type*>& args={});
         FunctionType* addFunction(const std::string& name, std::vector<std::pair<Type*, std::string>> argList,Type* returnType,bool isExternal=false);
         const std::vector<std::unique_ptr<FunctionType>>* getFunction(const std::string& name, const std::vector<std::string>& ns_hierarchy={});
         const std::vector<std::string>& getNamespaceHierarchy();
