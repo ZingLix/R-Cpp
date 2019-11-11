@@ -6,29 +6,29 @@
 using namespace Parse;
 
 std::unique_ptr<Stmt> Parser::ParseIntegerExpr() {
-    auto res = std::make_unique<IntegerStmt>(std::stoi(cur_token_.content));
+    auto res = std::make_unique<IntegerStmt>(std::stoi(lexer_.curToken().content));
     getNextToken();
     return res;
 }
 
 std::unique_ptr<Stmt> Parser::ParseFloatExpr() {
-    auto res = std::make_unique<FloatStmt>(std::stof(cur_token_.content));
+    auto res = std::make_unique<FloatStmt>(std::stof(lexer_.curToken().content));
     getNextToken();
     return res;
 }
 
 std::unique_ptr<Stmt> Parse::Parser::ParseStatement() {
-    if (cur_token_.type == TokenType::Return) {
+    if (lexer_.curToken().type == TokenType::Return) {
         return ParseReturnExpr();
     }
-    if (cur_token_.type == TokenType::If) {
+    if (lexer_.curToken().type == TokenType::If) {
         return ParseIfExpr();
     }
-    if (cur_token_.type == TokenType::For) {
+    if (lexer_.curToken().type == TokenType::For) {
         return ParseForExpr();
     }
     // TODO: Using statement
-    //if(cur_token_.type==TokenType::Using)
+    //if(lexer_.curToken().type==TokenType::Using)
     //{
     //    ParseUsing();
     //    return std::make_unique<NonExprAST>();
@@ -37,20 +37,20 @@ std::unique_ptr<Stmt> Parse::Parser::ParseStatement() {
 }
 
 std::unique_ptr<Stmt> Parse::Parser::ParsePrimary() {
-    if (cur_token_.type == TokenType::Identifier) {
+    if (lexer_.curToken().type == TokenType::Identifier) {
         auto e = ParseIdentifierExpr();
         while (isPostOperator()) {
             e = ParsePostOperator(std::move(e));
         }
         return e;
     }
-    if (cur_token_.type == TokenType::Integer) {
+    if (lexer_.curToken().type == TokenType::Integer) {
         return ParseIntegerExpr();
     }
-    if (cur_token_.type == TokenType::Float) {
+    if (lexer_.curToken().type == TokenType::Float) {
         return ParseFloatExpr();
     }
-    if (cur_token_.type == TokenType::lParenthesis) {
+    if (lexer_.curToken().type == TokenType::lParenthesis) {
         return ParseParenExpr();
     }
     auto op = getNextUnaryOperator();
@@ -63,17 +63,17 @@ std::unique_ptr<Stmt> Parse::Parser::ParsePrimary() {
 }
 
 bool Parse::Parser::isPostOperator() {
-    if (cur_token_.type == TokenType::lSquare) {
+    if (lexer_.curToken().type == TokenType::lSquare) {
         return true;
-    } else if (cur_token_.type == TokenType::lParenthesis) {
+    } else if (lexer_.curToken().type == TokenType::lParenthesis) {
         return true;
-    } else if (cur_token_.type == TokenType::Point) {
+    } else if (lexer_.curToken().type == TokenType::Point) {
         return true;
-    } else if (cur_token_.type == TokenType::Plus) {
-        return  lexer_.nextChar() == '+';
-    } else if (cur_token_.type == TokenType::Minus) {
-        return  lexer_.nextChar() == '-' || lexer_.nextChar() == '>';
-    } else if (cur_token_.type == TokenType::Colon) {
+    } else if (lexer_.curToken().type == TokenType::Plus) {
+        return  lexer_.viewNextToken().type == TokenType::Plus;
+    } else if (lexer_.curToken().type == TokenType::Minus) {
+        return  lexer_.viewNextToken().type == TokenType::Minus || lexer_.viewNextToken().type == TokenType::rAngle;
+    } else if (lexer_.curToken().type == TokenType::Colon) {
         return true;
     }
     return false;
@@ -81,31 +81,31 @@ bool Parse::Parser::isPostOperator() {
 
 std::unique_ptr<Stmt> Parse::Parser::ParsePostOperator(std::unique_ptr<Stmt> e) {
     //auto type = e->getType();
-    if (cur_token_.type == TokenType::lSquare) {
+    if (lexer_.curToken().type == TokenType::lSquare) {
         //if (type.typeName != "__arr") {
         //    error("No suitable [] operator for " + type.typeName + ".");
         //    return nullptr;
         //}
         e = std::make_unique<UnaryOperatorStmt>(std::move(e),
             OperatorType::Subscript, ParseSquareExprList());
-    } else if (cur_token_.type == TokenType::lParenthesis) {
+    } else if (lexer_.curToken().type == TokenType::lParenthesis) {
         e = std::make_unique<UnaryOperatorStmt>(std::move(e),
             OperatorType::FunctionCall, ParseParenExprList());
-    } else if (cur_token_.type == TokenType::Point) {
+    } else if (lexer_.curToken().type == TokenType::Point) {
         getNextToken();
-        if (cur_token_.type != TokenType::Identifier) {
+        if (lexer_.curToken().type != TokenType::Identifier) {
             error("Expected members of class.");
         }
-        auto name = cur_token_.content;
+        auto name = lexer_.curToken().content;
         getNextToken();
         e = std::make_unique<BinaryOperatorStmt>(std::move(e), std::make_unique<VariableStmt>(name),
             OperatorType::MemberAccessP);
         //e = ParseMemberAccess(std::move(e), OperatorType::MemberAccessP);
-    } else if (cur_token_.type == TokenType::Plus) {
+    } else if (lexer_.curToken().type == TokenType::Plus) {
         assert(getNextUnaryOperator() == OperatorType::PreIncrement);
         e = std::make_unique<UnaryOperatorStmt>(std::move(e), OperatorType::PostIncrement);
-    } else if (cur_token_.type == TokenType::Minus) {
-        if (lexer_.nextChar() == '>') {
+    } else if (lexer_.curToken().type == TokenType::Minus) {
+        if (lexer_.viewNextToken().type == TokenType::rAngle) {
             //assert(e->getType().typeName == "__ptr");
             assert(getNextBinOperator() == OperatorType::MemberAccessA);
             e = std::make_unique<BinaryOperatorStmt>(std::move(e), ParseExpression(), OperatorType::MemberAccessA);
@@ -117,7 +117,7 @@ std::unique_ptr<Stmt> Parse::Parser::ParsePostOperator(std::unique_ptr<Stmt> e) 
 
     }
     // TODO: Namspace
-    /* else if(cur_token_.type==TokenType::Colon)
+    /* else if(lexer_.curToken().type==TokenType::Colon)
     {
         assert(getNextBinOperator() == OperatorType::ScopeResolution);
         e=
@@ -139,7 +139,7 @@ std::unique_ptr<Stmt> Parse::Parser::ParseParenExpr() {
     getNextToken(); //eat (
     auto expr = ParseExpression();
     if (!expr) return nullptr;
-    if (cur_token_.type != TokenType::rParenthesis) {
+    if (lexer_.curToken().type != TokenType::rParenthesis) {
         error("Expected ).");
         return nullptr;
     }
@@ -148,20 +148,26 @@ std::unique_ptr<Stmt> Parse::Parser::ParseParenExpr() {
 }
 
 std::unique_ptr<Stmt> Parse::Parser::ParseIdentifierExpr() {
-    auto idname = cur_token_.content;
+    auto idname = lexer_.curToken().content;
     getNextToken();
     // is defining a identifier
- //   if (cur_token_.type_llvm == TokenType::Identifier||cur_token_.type_llvm==TokenType::lAngle) {
-    if ((cur_token_.type == TokenType::Identifier || cur_token_.type == TokenType::lAngle || cur_token_.type == TokenType::lParenthesis)) {
-        return ParseVariableDefinition(idname);
+ //   if (lexer_.curToken().type_llvm == TokenType::Identifier||lexer_.curToken().type_llvm==TokenType::lAngle) {
+    if (lexer_.curToken().type == TokenType::Identifier || lexer_.curToken().type == TokenType::lAngle || lexer_.curToken().type == TokenType::lParenthesis) {
+        auto cur_it = lexer_.getIterator();
+        auto def = ParseVariableDefinition(idname);
+        if(def)
+        {
+            return def;
+        }
+        lexer_.setIterator(cur_it);
     }
     // TODO: Namspace
-    //if(cur_token_.type==TokenType::Colon)
+    //if(lexer_.curToken().type==TokenType::Colon)
     //{
     //    return std::make_unique<NamespaceExprAST>(idname);
     //}
     // is only a identifier
-    //if (cur_token_.type != TokenType::lParenthesis) {
+    //if (lexer_.curToken().type != TokenType::lParenthesis) {
         //auto var = symbol_->getValue(idname);
         //if(var.name=="")
         //{
@@ -171,7 +177,7 @@ std::unique_ptr<Stmt> Parse::Parser::ParseIdentifierExpr() {
     return std::make_unique<VariableStmt>(idname);;
     //}
     // TODO: is calling a function
-    /*assert(cur_token_.type == TokenType::lParenthesis);
+    /*assert(lexer_.curToken().type == TokenType::lParenthesis);
     auto args = ParseParenExprList();
     auto fnList = symbol_->getFunction(idname,cur_namespace_);
     Function target;
@@ -203,25 +209,25 @@ std::unique_ptr<Stmt> Parse::Parser::ParseIdentifierExpr() {
 
 std::unique_ptr<Stmt> Parse::Parser::ParseForExpr() {
     getNextToken(); //eat for
-    if (cur_token_.type != TokenType::lParenthesis) {
+    if (lexer_.curToken().type != TokenType::lParenthesis) {
         error("Expected ( after a for loop.");
         return nullptr;
     }
     getNextToken(); //eat (
     auto start = ParseExpression();
-    if (cur_token_.type != TokenType::Semicolon) {
+    if (lexer_.curToken().type != TokenType::Semicolon) {
         error("Expected ; to split for expression.");
         return nullptr;
     }
     getNextToken(); //eat ;
     auto cond = ParseExpression();
-    if (cur_token_.type != TokenType::Semicolon) {
+    if (lexer_.curToken().type != TokenType::Semicolon) {
         error("Expected ; to split for expression.");
         return nullptr;
     }
     getNextToken(); //eat ;
     auto end = ParseExpression();
-    if (cur_token_.type != TokenType::rParenthesis) {
+    if (lexer_.curToken().type != TokenType::rParenthesis) {
         error("Expected ) to end for condition.");
         return nullptr;
     }
@@ -233,12 +239,12 @@ std::unique_ptr<Stmt> Parse::Parser::ParseForExpr() {
 
 std::unique_ptr<Stmt> Parse::Parser::ParseVariableDefinition(const std::string& type_name) {
     std::vector<std::unique_ptr<Stmt>> template_args;
-    if (cur_token_.type == TokenType::lAngle) {
+    if (lexer_.curToken().type == TokenType::lAngle) {
         template_args = ParseAngleExprList();
     }
     auto type = std::make_unique<TypeStmt>(type_name, std::move(template_args));
-    if (cur_token_.type == TokenType::Identifier) {   // like 'int p=0'
-        auto varname = cur_token_.content;
+    if (lexer_.curToken().type == TokenType::Identifier) {   // like 'int p=0'
+        auto varname = lexer_.curToken().content;
         //if (type_name == "__arr") {
         //    if (template_args.size() != 2) {
         //        error("Invalid count of arguments for Arr.");
@@ -264,18 +270,21 @@ std::unique_ptr<Stmt> Parse::Parser::ParseVariableDefinition(const std::string& 
         //    }
         //    expr->setTemplateArgs(tempargs);
         //}
-        if (cur_token_.type == TokenType::Equal) {
+        if (lexer_.curToken().type == TokenType::Equal) {
             // definition with initiate value
             getNextToken();   // eat =
             auto E = ParseExpression();
             expr->setInitValue(std::move(E));
-        } else if (cur_token_.type != TokenType::Semicolon) {
+        } else if (lexer_.curToken().type != TokenType::Semicolon) {
             error("Expected initiate value or ;.");
             return nullptr;
         }
         return expr;
     } else {   // like 'Var(10)'
-        assert(cur_token_.type == TokenType::lParenthesis);
+        if(lexer_.curToken().type != TokenType::lParenthesis)
+        {
+            return nullptr;
+        }
         auto args = ParseParenExprList();
 
         return std::make_unique<UnaryOperatorStmt>(std::move(type),OperatorType::FunctionCall, std::move(args));
@@ -285,7 +294,7 @@ std::unique_ptr<Stmt> Parse::Parser::ParseVariableDefinition(const std::string& 
 std::unique_ptr<Stmt> Parse::Parser::ParseReturnExpr() {
     getNextToken();
     std::unique_ptr<Stmt> retval = nullptr;
-    if (cur_token_.type != TokenType::Semicolon) {
+    if (lexer_.curToken().type != TokenType::Semicolon) {
         retval = ParseExpression();
         if (!retval) {
             error("Invalid return value.");
@@ -318,8 +327,8 @@ std::unique_ptr<Stmt> Parse::Parser::ParseExpression() {
     expr.push(std::move(LHS));
     while (true) {
         OperatorType op;
-        if (cur_token_.type == TokenType::Semicolon || cur_token_.type == TokenType::rParenthesis
-            || cur_token_.type == TokenType::rSquare || cur_token_.type == TokenType::Comma) {
+        if (lexer_.curToken().type == TokenType::Semicolon || lexer_.curToken().type == TokenType::rParenthesis
+            || lexer_.curToken().type == TokenType::rSquare || lexer_.curToken().type == TokenType::Comma) {
             if (ops.top() == OperatorType::None) break;
             op = OperatorType::None;
         } else
@@ -362,90 +371,90 @@ OperatorType Parse::Parser::getNextBinOperator() {
         getNextToken();
         return o;
     };
-    TokenType first = cur_token_.type;
+    TokenType first = lexer_.curToken().type;
     getNextToken();
     if (first == TokenType::Colon) {
-        if (cur_token_.type == TokenType::Colon)   // ::
+        if (lexer_.curToken().type == TokenType::Colon)   // ::
             return ret(OperatorType::ScopeResolution);
         else
             return OperatorType::None;
     }
     if (first == TokenType::Minus) {
-        if (cur_token_.type == TokenType::rAngle)  // ->
+        if (lexer_.curToken().type == TokenType::rAngle)  // ->
             return ret(OperatorType::MemberAccessA);
-        if (cur_token_.type == TokenType::Equal)   // -=
+        if (lexer_.curToken().type == TokenType::Equal)   // -=
             return ret(OperatorType::MinComAssign);
         return OperatorType::Subtraction;
     }
     if (first == TokenType::lAngle) {
-        if (cur_token_.type == TokenType::lAngle) {  // <<
+        if (lexer_.curToken().type == TokenType::lAngle) {  // <<
             getNextToken();
-            if (cur_token_.type == TokenType::Equal)    // <<=
+            if (lexer_.curToken().type == TokenType::Equal)    // <<=
                 return ret(OperatorType::LshComAssign);
             return OperatorType::LeftShift;
         }
-        if (cur_token_.type == TokenType::Equal)      // <=
+        if (lexer_.curToken().type == TokenType::Equal)      // <=
             return ret(OperatorType::LessEqual);
         return OperatorType::Less;
     }
     if (first == TokenType::rAngle) {
-        if (cur_token_.type == TokenType::rAngle)         // >>
+        if (lexer_.curToken().type == TokenType::rAngle)         // >>
         {
             getNextToken();
-            if (cur_token_.type == TokenType::Equal)   // >>=
+            if (lexer_.curToken().type == TokenType::Equal)   // >>=
                 return ret(OperatorType::RshComAssign);
             return OperatorType::RightShift;
         }
-        if (cur_token_.type == TokenType::Equal)       // >=
+        if (lexer_.curToken().type == TokenType::Equal)       // >=
             return ret(OperatorType::GreaterEqual);
         return OperatorType::Greater;
     }
     if (first == TokenType::Exclam) {
-        if (cur_token_.type == TokenType::Equal)       // !=
+        if (lexer_.curToken().type == TokenType::Equal)       // !=
             return ret(OperatorType::NotEqual);
         return OperatorType::None;
     }
     if (first == TokenType::Multiply) {
-        if (cur_token_.type == TokenType::Equal)        // *=
+        if (lexer_.curToken().type == TokenType::Equal)        // *=
             return ret(OperatorType::MulComAssign);
         return OperatorType::Multiplication;
     }
     if (first == TokenType::Divide) {
-        if (cur_token_.type == TokenType::Equal)
+        if (lexer_.curToken().type == TokenType::Equal)
             return ret(OperatorType::DivComAssign);
         return OperatorType::Division;
     }
     if (first == TokenType::Plus) {
-        if (cur_token_.type == TokenType::Equal)
+        if (lexer_.curToken().type == TokenType::Equal)
             return ret(OperatorType::SumComAssign);
         return OperatorType::Addition;
     }
     if (first == TokenType::Percent) {
-        if (cur_token_.type == TokenType::Equal)
+        if (lexer_.curToken().type == TokenType::Equal)
             return ret(OperatorType::RemComAssign);
         return OperatorType::Remainder;
     }
     if (first == TokenType::And) {
-        if (cur_token_.type == TokenType::And)
+        if (lexer_.curToken().type == TokenType::And)
             return ret(OperatorType::LogicalAND);
-        if (cur_token_.type == TokenType::Equal)
+        if (lexer_.curToken().type == TokenType::Equal)
             return ret(OperatorType::ANDComAssign);
         return ret(OperatorType::BitwiseAND);
     }
     if (first == TokenType::Or) {
-        if (cur_token_.type == TokenType::Or)
+        if (lexer_.curToken().type == TokenType::Or)
             return ret(OperatorType::LogicalOR);
-        if (cur_token_.type == TokenType::Equal)
+        if (lexer_.curToken().type == TokenType::Equal)
             return ret(OperatorType::ORComAssign);
         return OperatorType::BitwiseOR;
     }
     if (first == TokenType::Xor) {
-        if (cur_token_.type == TokenType::Xor)
+        if (lexer_.curToken().type == TokenType::Xor)
             return ret(OperatorType::XORComAssign);
         return OperatorType::None;
     }
     if (first == TokenType::Equal) {
-        if (cur_token_.type == TokenType::Equal)
+        if (lexer_.curToken().type == TokenType::Equal)
             return ret(OperatorType::Equal);
         return OperatorType::Assignment;
     }
@@ -457,15 +466,15 @@ OperatorType Parse::Parser::getNextUnaryOperator() {
         getNextToken();
         return o;
     };
-    TokenType first = cur_token_.type;
+    TokenType first = lexer_.curToken().type;
     getNextToken();
     if (first == TokenType::Plus) {
-        if (cur_token_.type == TokenType::Plus)
+        if (lexer_.curToken().type == TokenType::Plus)
             return ret(OperatorType::PreIncrement);
         return OperatorType::Promotion;
     }
     if (first == TokenType::Minus) {
-        if (cur_token_.type == TokenType::Minus)
+        if (lexer_.curToken().type == TokenType::Minus)
             return ret(OperatorType::PreDecrement);
         return OperatorType::Negation;
     }
@@ -485,12 +494,12 @@ std::unique_ptr<Stmt> Parse::Parser::ParseIfExpr() {
     getNextToken();  // eat if
     auto cond = ParseParenExpr();
     if (!cond) return nullptr;
-    //   if (cur_token_.type_llvm != TokenType::lBrace)
+    //   if (lexer_.curToken().type_llvm != TokenType::lBrace)
     //       return LogError("Expected {.");
     auto then = ParseBlock();
-    if (cur_token_.type == TokenType::Else) {
+    if (lexer_.curToken().type == TokenType::Else) {
         getNextToken();
-        if (cur_token_.type == TokenType::If) {
+        if (lexer_.curToken().type == TokenType::If) {
             auto elseif = ParseBlock();
             if (!elseif) return nullptr;
             return std::make_unique<IfStmt>(std::move(cond), std::move(then), std::move(elseif));
@@ -505,13 +514,13 @@ std::unique_ptr<Stmt> Parse::Parser::ParseIfExpr() {
 std::vector<std::pair<std::unique_ptr<Stmt>, std::string>> Parser::ParseFunctionArgList() {
     std::vector<std::pair<std::unique_ptr<Stmt>, std::string>> ArgNames;
     getNextToken();
-    while (cur_token_.type != TokenType::rParenthesis) {
+    while (lexer_.curToken().type != TokenType::rParenthesis) {
         auto type = ParseType();
         // getNextToken();
-        ArgNames.emplace_back(std::make_pair(std::move(type), cur_token_.content));
+        ArgNames.emplace_back(std::make_pair(std::move(type), lexer_.curToken().content));
         getNextToken();
-        if (cur_token_.type == TokenType::rParenthesis) break;
-        if (cur_token_.type != TokenType::Comma) {
+        if (lexer_.curToken().type == TokenType::rParenthesis) break;
+        if (lexer_.curToken().type != TokenType::Comma) {
             error("Expected , to split arguments.");
             return {};
         }
@@ -522,38 +531,38 @@ std::vector<std::pair<std::unique_ptr<Stmt>, std::string>> Parser::ParseFunction
 
 
 std::unique_ptr<FunctionDecl> Parse::Parser::ParsePrototype() {
-    if (cur_token_.type != TokenType::Identifier) {
+    if (lexer_.curToken().type != TokenType::Identifier) {
         error("Expected function name in prototype");
         return nullptr;
     }
-    std::string FnName = cur_token_.content;
+    std::string FnName = lexer_.curToken().content;
     getNextToken();
-    if (cur_token_.type != TokenType::lParenthesis) {
+    if (lexer_.curToken().type != TokenType::lParenthesis) {
         error("Expected '(' in prototype");
         return nullptr;
     }
     // Read the list of argument names.
     auto ArgNames = ParseFunctionArgList();
 
-    if (cur_token_.type != TokenType::rParenthesis) {
+    if (lexer_.curToken().type != TokenType::rParenthesis) {
         error("Expected ')' in prototype");
         return nullptr;
     }
 
     getNextToken(); // eat ')'.
     std::unique_ptr<Stmt> retType = nullptr;
-    if (cur_token_.type == TokenType::Minus) {
+    if (lexer_.curToken().type == TokenType::Minus) {
         auto op = getNextBinOperator();
         if (op != OperatorType::MemberAccessA) {
             error("Unexpected symbol.");
             return nullptr;
         }
-        if (cur_token_.type != TokenType::Identifier) {
+        if (lexer_.curToken().type != TokenType::Identifier) {
             error("Unknown type.");
             return nullptr;
         }
         retType = ParseType();
-    } else if (cur_token_.type != TokenType::lBrace) {
+    } else if (lexer_.curToken().type != TokenType::lBrace) {
         error("Return value must be pointed out explicitly when declaring a function prototype.");
         return nullptr;
     } else {
@@ -571,26 +580,26 @@ std::unique_ptr<FunctionDecl> Parse::Parser::ParsePrototype() {
 std::unique_ptr<CompoundStmt> Parse::Parser::ParseBlock() {
     std::vector<std::unique_ptr<Stmt>> body;
     bool hasReturn = false;
-    if (cur_token_.type != TokenType::lBrace) {   // with only one statement, {} can be omitted
+    if (lexer_.curToken().type != TokenType::lBrace) {   // with only one statement, {} can be omitted
         auto expr = ParseStatement();
         if (expr != nullptr) body.emplace_back(std::move(expr));
         //if (dynamic_cast<ReturnStmt*>(expr.get()) != nullptr) hasReturn = true;
-        if (cur_token_.type == TokenType::Semicolon) {
+        if (lexer_.curToken().type == TokenType::Semicolon) {
             getNextToken();  //eat ;
         }
         //symbol_->callNamelessVarDestructor(body);
     } else {   // block with { }
         getNextToken();      //eat {
-        while (cur_token_.type != TokenType::rBrace && cur_token_.type != TokenType::Eof) {
+        while (lexer_.curToken().type != TokenType::rBrace && lexer_.curToken().type != TokenType::Eof) {
             auto E = ParseStatement();
             if (!E) return nullptr;
             //if (dynamic_cast<ReturnAST*>(E.get()) != nullptr) hasReturn = true;
             body.emplace_back(std::move(E));
-            if (cur_token_.type == TokenType::Semicolon)
+            if (lexer_.curToken().type == TokenType::Semicolon)
                 getNextToken();     // eat ;
             //symbolTable()->callNamelessVarDestructor(body);
         }
-        if (cur_token_.type != TokenType::rBrace) {
+        if (lexer_.curToken().type != TokenType::rBrace) {
             error("Expected }.");
             return nullptr;
         }
@@ -608,12 +617,12 @@ std::unique_ptr<FunctionDecl> Parse::Parser::ParseFunction() {
     if (!f) return {};
     std::unique_ptr<CompoundStmt> body;
 
-    if (cur_token_.type == TokenType::Semicolon) {
+    if (lexer_.curToken().type == TokenType::Semicolon) {
         getNextToken();
         f->setBody(nullptr);
         return f;
     }
-    if (cur_token_.type != TokenType::lBrace) {
+    if (lexer_.curToken().type != TokenType::lBrace) {
         error("Expected { or ;.");
         return {};
     }
@@ -647,21 +656,21 @@ void Parse::Parser::HandleDefinition() {
 
 std::unique_ptr<ClassDecl> Parse::Parser::ParseClass() {
     getNextToken();  // eat class
-    if (cur_token_.type != TokenType::Identifier) {
+    if (lexer_.curToken().type != TokenType::Identifier) {
         error("Expected class name.");
         return nullptr;
     }
-    auto classDecl = std::make_unique<ClassDecl>(cur_token_.content);
+    auto classDecl = std::make_unique<ClassDecl>(lexer_.curToken().content);
     getNextToken();
-    if (cur_token_.type != TokenType::lBrace) {
+    if (lexer_.curToken().type != TokenType::lBrace) {
         error("Expect class body.");
         return nullptr;
     }
     getNextToken(); // eat ;
     //std::unique_ptr<CompoundStmt> desturctorBlock = nullptr;
-    while (cur_token_.type != TokenType::rBrace) {
-        if (cur_token_.type == TokenType::Identifier) {
-            if (cur_token_.content == classDecl->name() && lexer_.nextChar() == '(') {   // parsing constructor
+    while (lexer_.curToken().type != TokenType::rBrace) {
+        if (lexer_.curToken().type == TokenType::Identifier) {
+            if (lexer_.curToken().content == classDecl->name() && lexer_.viewNextToken().type == TokenType::lParenthesis) {   // parsing constructor
                 getNextToken();
                 auto ArgNames = ParseFunctionArgList();
                 getNextToken();
@@ -675,7 +684,7 @@ std::unique_ptr<ClassDecl> Parse::Parser::ParseClass() {
                 classDecl->addConstructor(std::move(F));
             } else {   // parsing member variable
                 auto type = ParseType();
-                auto name = cur_token_.content;
+                auto name = lexer_.curToken().content;
                 getNextToken();
                 if (name == "") {
                     error("Invalid declaration.");
@@ -685,11 +694,11 @@ std::unique_ptr<ClassDecl> Parse::Parser::ParseClass() {
                 classDecl->addMemberVariable(std::move(type), name);
                 //c.memberVariables.emplace_back(name, type);
             }
-        } else if (cur_token_.type == TokenType::Function) {
+        } else if (lexer_.curToken().type == TokenType::Function) {
             auto f = ParseFunction();
             classDecl->addMemberFunction(std::move(f));
-        } else if (cur_token_.type == TokenType::Tilde) {   // parsing destructor
-            if (getNextToken().type != TokenType::Identifier || cur_token_.content != classDecl->name()) {
+        } else if (lexer_.curToken().type == TokenType::Tilde) {   // parsing destructor
+            if (getNextToken().type != TokenType::Identifier || lexer_.curToken().content != classDecl->name()) {
                 error("Expected classname to identify destructor.");
                 return nullptr;
             }
@@ -717,7 +726,7 @@ std::unique_ptr<ClassDecl> Parse::Parser::ParseClass() {
             //expr_.push_back(std::move(F));
             //c.destructor=f;
         }
-        if (cur_token_.type == TokenType::Semicolon) getNextToken();
+        if (lexer_.curToken().type == TokenType::Semicolon) getNextToken();
 
         //symbol_->addFunction(generateFunction_new(c.type));
         //generateDestructor(c, std::move(desturctorBlock));
@@ -739,7 +748,7 @@ void Parse::Parser::HandleClass() {
 
 void Parse::Parser::MainLoop() {
     while (1) {
-        switch (cur_token_.type) {
+        switch (lexer_.curToken().type) {
         case TokenType::Eof:
             return;
         case TokenType::Semicolon: // ignore top-level semicolons.
@@ -772,20 +781,20 @@ void Parse::Parser::MainLoop() {
 }
 
 Token& Parse::Parser::getNextToken() {
-    return cur_token_ = lexer_.nextToken();
+    return lexer_.curToken() = lexer_.nextToken();
 }
 
 void Parse::Parser::error(const std::string& errmsg) {
-    std::cout << lexer_.getLineNo() << "." << lexer_.getCharNo() << ":\t";
+    std::cout << lexer_.curToken().lineNum << "." << lexer_.curToken().charNum << ":\t";
     std::cout << errmsg << std::endl;
 }
 
 std::vector<std::unique_ptr<Stmt>> Parse::Parser::ParseExprList(TokenType endToken) {
     std::vector<std::unique_ptr<Stmt>> exprs;
-    while (cur_token_.type != endToken) {
+    while (lexer_.curToken().type != endToken) {
         exprs.push_back(ParseExpression());
-        if (cur_token_.type == endToken) break;
-        if (cur_token_.type != TokenType::Comma) {
+        if (lexer_.curToken().type == endToken) break;
+        if (lexer_.curToken().type != TokenType::Comma) {
             error("Expect , to split expressions.");
             return std::vector<std::unique_ptr<Stmt>>();
         }
@@ -812,11 +821,11 @@ std::vector<std::unique_ptr<Stmt>> Parse::Parser::ParseAngleExprList() {
     getNextToken(); // eat <
     //auto exprs = ParseExprList(TokenType::rAngle);
     std::vector<std::unique_ptr<Stmt>> exprs;
-    while (cur_token_.type != TokenType::rAngle) {
+    while (lexer_.curToken().type != TokenType::rAngle) {
         exprs.push_back(ParseType());
-        if (cur_token_.type == TokenType::Comma) {
+        if (lexer_.curToken().type == TokenType::Comma) {
             getNextToken();
-        } else if (cur_token_.type != TokenType::rAngle) {
+        } else if (lexer_.curToken().type != TokenType::rAngle) {
             error("Expect , to split typename or > to end list.");
             return {};
         }
@@ -827,13 +836,13 @@ std::vector<std::unique_ptr<Stmt>> Parse::Parser::ParseAngleExprList() {
 
 std::unique_ptr<Stmt> Parse::Parser::ParseType() {
     /*bool isconst = false;
-    if(cur_token_.content=="const")
+    if(lexer_.curToken().content=="const")
     {
         isconst = true;
     }*/
-    auto type = cur_token_.content;
+    auto type = lexer_.curToken().content;
     getNextToken();
-    if (cur_token_.type == TokenType::lAngle) {
+    if (lexer_.curToken().type == TokenType::lAngle) {
         auto templateArgs = ParseAngleExprList();
         return std::make_unique<TypeStmt>(type, std::move(templateArgs));
     }
@@ -870,9 +879,9 @@ ASTContext& Parser::context()
 //std::unique_ptr<Stmt> Parse::Parser::ParseMemberAccess(std::unique_ptr<Stmt> lhs,OperatorType Op)
 //{
 //   // auto type = lhs->getType();
-//    auto name = cur_token_.content;
+//    auto name = lexer_.curToken().content;
 //    getNextToken();
-//    if(cur_token_.type==TokenType::lParenthesis)
+//    if(lexer_.curToken().type==TokenType::lParenthesis)
 //    {
 //        //Function F;
 //        //auto args = ParseParenExprList();
@@ -926,14 +935,14 @@ ASTContext& Parser::context()
 void Parse::Parser::ParseExternal() {
     isExternal = true;
     getNextToken();
-    if (cur_token_.type != TokenType::Colon)
+    if (lexer_.curToken().type != TokenType::Colon)
         error("Expected : after external.");
     getNextToken();
 }
 void Parse::Parser::ParseInternal() {
     isExternal = false;
     getNextToken();
-    if (cur_token_.type != TokenType::Colon)
+    if (lexer_.curToken().type != TokenType::Colon)
         error("Expected : after internal.");
     getNextToken();
 }
@@ -942,42 +951,42 @@ void Parse::Parser::ParseInternal() {
 //{
 //    getNextToken();  // eat <
 //    std::vector<std::pair<std::unique_ptr<TypeStmt>, std::string>> typelist;
-//    while (cur_token_.type!=TokenType::rAngle)
+//    while (lexer_.curToken().type!=TokenType::rAngle)
 //    {
 //        auto type = ParseType();
-//        auto name = cur_token_.content;
+//        auto name = lexer_.curToken().content;
 //        getNextToken();
 //        typelist.emplace_back(type, name);
-//        if (cur_token_.type == TokenType::Comma) getNextToken();
+//        if (lexer_.curToken().type == TokenType::Comma) getNextToken();
 //    }
 //    getNextToken();  // eat >
-//    if(cur_token_.type==TokenType::Class)
+//    if(lexer_.curToken().type==TokenType::Class)
 //    {
 //        std::vector<Token> tokenStream;
-//        tokenStream.push_back(cur_token_);
+//        tokenStream.push_back(lexer_.curToken());
 //        getNextToken();
-//        if(cur_token_.type!=TokenType::Identifier)
+//        if(lexer_.curToken().type!=TokenType::Identifier)
 //        {
 //            error("Invalid identifier.");
 //            return;
 //        }
-//        auto name = cur_token_.content;
-//        tokenStream.push_back(cur_token_);
+//        auto name = lexer_.curToken().content;
+//        tokenStream.push_back(lexer_.curToken());
 //        getNextToken();
-//        if(cur_token_.type!=TokenType::lBrace)
+//        if(lexer_.curToken().type!=TokenType::lBrace)
 //        {
 //            error("Expected { .");
 //            return;
 //        }
-//        tokenStream.push_back(cur_token_);
+//        tokenStream.push_back(lexer_.curToken());
 //       // getNextToken();
 //        int i = 1;
 //        while (true)
 //        {
 //            getNextToken();
-//            tokenStream.push_back(cur_token_);
-//            if (cur_token_.type == TokenType::lBrace) ++i;
-//            if (cur_token_.type == TokenType::rBrace) --i;
+//            tokenStream.push_back(lexer_.curToken());
+//            if (lexer_.curToken().type == TokenType::lBrace) ++i;
+//            if (lexer_.curToken().type == TokenType::rBrace) --i;
 //            if (i == 0) break;
 //        }
 //        //ClassTemplate template_;
@@ -996,14 +1005,14 @@ void Parse::Parser::ParseInternal() {
 //void Parse::Parser::ParseUsing()
 //{
 //    getNextToken();  // eat using
-//    if (cur_token_.type != TokenType::Identifier)
+//    if (lexer_.curToken().type != TokenType::Identifier)
 //    {
 //        error("Expected identifier after using.");
 //        return;
 //    }
-//    auto newType = cur_token_.content;
+//    auto newType = lexer_.curToken().content;
 //    getNextToken();
-//    if(cur_token_.type!=TokenType::Equal)
+//    if(lexer_.curToken().type!=TokenType::Equal)
 //    {
 //        error("Expected = after using typename.");
 //        return;

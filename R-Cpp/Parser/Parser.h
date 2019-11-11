@@ -10,8 +10,8 @@ namespace Parse {
     class Parser
     {
     public:
-        Parser(const std::string& filename) :lexer_(filename),
-            cur_token_(lexer_.nextToken())/*,
+        Parser(const std::string& filename) :lexer_(filename),isExternal(false)//,
+            /*,
             isExternal(false),nameless_var_count_(0)*/ {
         }
 
@@ -61,9 +61,10 @@ namespace Parse {
         std::unique_ptr<Stmt> ParseType();
         //void generateDestructor(Class&c, std::unique_ptr<BlockExprAST> block);
         bool isPostOperator();
+        Token curToken();
 
         Lexer lexer_;
-        Token cur_token_;
+        //Token cur_token_;
         std::vector<std::unique_ptr<FunctionDecl>> functionDecls_;
         std::vector<std::unique_ptr<ClassDecl>> classDecls_;
         //std::vector<std::string> cur_namespace_;

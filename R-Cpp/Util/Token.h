@@ -61,15 +61,18 @@ struct TokenHash
 
 struct Token
 {
-    Token(TokenType t, std::string s) :type(t), content(s) {}
-    Token(TokenType t) :type(t), content() {}
+    Token(TokenType t, const std::string& s,int lineNum,int charNum) :type(t), content(s), lineNum(lineNum),charNum(charNum) {}
+    Token(TokenType t, int lineNum, int charNum) :type(t), content(), lineNum(lineNum), charNum(charNum) {}
     Token(const Token& other)
-    {
+    { 
         type = other.type;
         content = other.content;
+        lineNum = other.lineNum;
+        charNum = other.charNum;
     }
     TokenType type;
     std::string content;
+    int lineNum, charNum;
 };
 
 constexpr TokenType charToToken(char c)

@@ -75,9 +75,12 @@ void Parse::ForStmt::print(std::string indent, bool last) {
 
 std::unique_ptr<ExprAST> Parse::ForStmt::toLLVMAST(ASTContext* context)
 {
-    return std::make_unique<ForExprAST>(start_->toLLVMAST(context), cond_->toLLVMAST(context),
-        end_->toLLVMAST(context), body_->toBlockExprAST(context));
-    
+    auto start = start_->toLLVMAST(context);
+    auto cond = cond_->toLLVMAST(context);
+    auto end = end_->toLLVMAST(context);
+    auto body = body_->toBlockExprAST(context);
+    return std::make_unique<ForExprAST>(std::move(start), std::move(cond),
+        end_->toLLVMAST(context), std::move(body));
 }
 
 Parse::ReturnStmt::ReturnStmt(std::unique_ptr<Stmt> returnVal): ret_val_(std::move(returnVal)) {

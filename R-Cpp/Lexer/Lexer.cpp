@@ -3,13 +3,37 @@ using namespace std;
 
 Lexer::Lexer(const string& filename)
     : fstream_(filename, fstream_.in), lastChar_(' '),
-    lineCount(1),charCount(1)
+    lineCount(1),charCount(1),index_(0)
 {
     if (!fstream_.is_open())
         throw std::runtime_error("Failed to open " + filename + ".");
+    while (!fstream_.eof())
+    {
+        tokens_.push_back(getNextToken());
+    }
 }
 
 Token Lexer::nextToken()
+{
+    return tokens_[index_++];
+}
+
+void Lexer::setIterator(iterator it)
+{
+    index_ = it;
+}
+
+Lexer::iterator Lexer::getIterator()
+{
+    return index_;
+}
+
+struct Token Lexer::curToken()
+{
+    return tokens_[index_];
+}
+
+Token Lexer::getNextToken()
 {
     while (isspace(lastChar_)||lastChar_=='\n'||lastChar_=='\r')
         getNextChar();
@@ -25,7 +49,7 @@ Token Lexer::nextToken()
         }
     }
     if (lastChar_ == EOF)
-        return Token(TokenType::Eof);
+        return makeToken(TokenType::Eof);
     return nextCharacter();
 }
 
@@ -39,9 +63,9 @@ int Lexer::getCharNo()
     return charCount;
 }
 
-char Lexer::nextChar()
+Token Lexer::viewNextToken()
 {
-    return lastChar_;
+    return tokens_[index_+1];
 }
 
 
@@ -55,30 +79,30 @@ Token Lexer::nextIdentifier()
         getNextChar();
     }
     if (content == "fn")
-        return Token(TokenType::Function);
+        return makeToken(TokenType::Function);
     if (content == "import")
-        return Token(TokenType::Import);
+        return makeToken(TokenType::Import);
     if (content == "trait")
-        return Token(TokenType::Trait);
+        return makeToken(TokenType::Trait);
     if (content == "namespace")
-        return Token(TokenType::Namespace);
+        return makeToken(TokenType::Namespace);
     if (content == "class")
-        return Token(TokenType::Class);
+        return makeToken(TokenType::Class);
     if (content == "return")
-        return Token(TokenType::Return);
+        return makeToken(TokenType::Return);
     if (content == "if")
-        return Token(TokenType::If);
+        return makeToken(TokenType::If);
     if (content == "else")
-        return Token(TokenType::Else);
+        return makeToken(TokenType::Else);
     if (content == "for")
-        return Token(TokenType::For);
+        return makeToken(TokenType::For);
     if (content == "external")
-        return Token(TokenType::External);
+        return makeToken(TokenType::External);
     if (content == "internal")
-        return Token(TokenType::Internal);
+        return makeToken(TokenType::Internal);
     if (content == "using")
-        return Token(TokenType::Using);
-    return Token(TokenType::Identifier, content);
+        return makeToken(TokenType::Using);
+    return makeToken(TokenType::Identifier, content);
 }
 
 Token Lexer::nextNumber()
@@ -89,7 +113,7 @@ Token Lexer::nextNumber()
     {
         // like the point in obj.func()
         getNextChar();
-        return Token(TokenType::Point);
+        return makeToken(TokenType::Point);
     }
     string num;
     while (isdigit(lastChar_) || lastChar_ == '.')
@@ -102,7 +126,7 @@ Token Lexer::nextNumber()
         num += lastChar_;
         getNextChar();
     }
-    return Token(isFloat ? TokenType::Float : TokenType::Integer, num);
+    return makeToken(isFloat ? TokenType::Float : TokenType::Integer, num);
 }
 
 Token Lexer::skipComment()
@@ -111,7 +135,7 @@ Token Lexer::skipComment()
     while (lastChar_ != '\n' && lastChar_ != '\r')
     {
         getNextChar();
-        if (lastChar_ == EOF) return Token(TokenType::Eof);
+        if (lastChar_ == EOF) return makeToken(TokenType::Eof);
     }
     return nextToken();
 }
@@ -120,7 +144,7 @@ Token Lexer::nextCharacter()
 {
     auto tmp = lastChar_;
     getNextChar();
-    return Token(charToToken(tmp));
+    return makeToken(charToToken(tmp));
 }
 
 void Lexer::getNextChar()
@@ -134,4 +158,9 @@ void Lexer::getNextChar()
     {
         charCount++;
     }
+}
+
+Token Lexer::makeToken(TokenType tok, const std::string& content)
+{
+    return Token(tok, content, getLineNo(), getCharNo());
 }
