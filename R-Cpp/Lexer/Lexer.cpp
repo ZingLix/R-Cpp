@@ -137,7 +137,7 @@ Token Lexer::skipComment()
         getNextChar();
         if (lastChar_ == EOF) return makeToken(TokenType::Eof);
     }
-    return nextToken();
+    return getNextToken();
 }
 
 Token Lexer::nextCharacter()
