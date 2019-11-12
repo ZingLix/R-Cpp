@@ -3,6 +3,7 @@
 #include <set>
 #include <vector>
 #include <memory>
+#include <map>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Value.h>
 
@@ -109,7 +110,9 @@ namespace Parse
         {
             return returnType_;
         }
-
+        Type* classType() {
+            return classType_;
+        }
     private:
         std::vector<std::pair<Type*,std::string>> argTypeList_;
         Type* returnType_;
@@ -172,9 +175,23 @@ namespace Parse
             return memberList_;
         }
 
+        bool hasFunction(const std::string& funcName) {
+            return memberFunctions_.find(funcName) != memberFunctions_.end();
+        }
+
+        const std::vector<FunctionType*>* getFunction(const std::string& funcName) {
+            auto it = memberFunctions_.find(funcName);
+            if (it == memberFunctions_.end()) return nullptr;
+            return &(it->second);
+        }
+
+        void addFunction(FunctionType* func) {
+            memberFunctions_[func->getTypename()].push_back(func);
+        }
+
     private:
         std::vector<std::pair<Type*, std::string>> memberList_;
-        std::vector<FunctionType*> memberFunctions_;
+        std::map<std::string, std::vector<FunctionType*>> memberFunctions_;
         std::vector<FunctionType*> constructors_;
         FunctionType* destructor_;
     };

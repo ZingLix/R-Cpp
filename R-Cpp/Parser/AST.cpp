@@ -122,9 +122,18 @@ std::unique_ptr<ExprAST> Parse::BinaryOperatorStmt::toLLVMAST(ASTContext* contex
         }
         auto r = dynamic_cast<VariableStmt*>(rhs_.get());
         auto index = type->getMemberIndex(r->getName());
-        type_ = type->getMemberType(r->getName());
-        
-        return std::make_unique<MemberAccessAST>(std::move(l), index, type_->mangledName());
+        if(index!=-1) {
+            type_ = type->getMemberType(r->getName());
+            return std::make_unique<MemberAccessAST>(std::move(l), index, type_->mangledName());
+        }
+        auto funclist = type->getFunction(r->getName());
+        if(funclist==nullptr) {
+            throw std::logic_error("Unknown member.");
+        }
+        type_ = (*funclist)[0];
+        auto ret = std::make_unique<CallExprAST>(r->getName(), std::vector<std::unique_ptr<ExprAST>>{}, "null");
+        ret->setThis(std::move(l));
+        return ret;
     }
     auto r = rhs_->toLLVMAST(context);
     if(lhs_->getType()!=rhs_->getType())
@@ -139,6 +148,14 @@ std::unique_ptr<ExprAST> Parse::BinaryOperatorStmt::toLLVMAST(ASTContext* contex
         type_ = lhs_->getType();
     }
     return std::make_unique<BinaryExprAST>(op_, std::move(l), std::move(r),l->getType());
+}
+
+Parse::Type* Parse::BinaryOperatorStmt::getLHSType() {
+    return lhs_->getType();
+}
+
+Parse::Type* Parse::BinaryOperatorStmt::getRHSType() {
+    return rhs_->getType();
 }
 
 Parse::UnaryOperatorStmt::
@@ -172,27 +189,59 @@ std::unique_ptr<ExprAST> Parse::UnaryOperatorStmt::toLLVMAST(ASTContext* context
     }
     auto fn = dynamic_cast<FunctionType*>(stmt_->getType());
     if(fn &&op_==OperatorType::FunctionCall) {
-        auto fnList = context->symbolTable().getFunction(fn->getTypename());
-        FunctionType* target=nullptr;
-        for (auto& f : *fnList) {
-            bool flag = true;
-            if (f->args().size() == args_.size()) {
-                size_t i = 0;
-                while (i < f->args().size()) {
-                    if (f->args()[i].first != args_[i]->getType()) {
-                        flag = false;
-                        break;
+        auto call = dynamic_cast<CallExprAST*>(expr.get());
+        if(call) {
+            // a.fun()
+            auto stmt = dynamic_cast<BinaryOperatorStmt*>(stmt_.get());
+            auto fnList = dynamic_cast<CompoundType*>(stmt->getLHSType())->getFunction(call->getName());
+            FunctionType* target = nullptr;
+            for (auto& f : *fnList) {
+                bool flag = true;
+                if (f->args().size() == args_.size()) {
+                    size_t i = 0;
+                    while (i < f->args().size()) {
+                        if (f->args()[i].first != args_[i]->getType()) {
+                            flag = false;
+                            break;
+                        }
+                        ++i;
                     }
-                    ++i;
+                    if (flag) target = f;
                 }
-                if (flag) target = f.get();
             }
+            if (!target) {
+                throw std::logic_error("No suitable function.");
+            }
+            type_ = target->returnType();
+            call->setType(type_->mangledName());
+            call->setName(target->mangledName());
+            call->setArgs(std::move(argsExpr));
+            return expr;
+        }else {
+            // func()
+            auto fnList = context->symbolTable().getFunction(fn->getTypename());
+            FunctionType* target = nullptr;
+            for (auto& f : *fnList) {
+                bool flag = true;
+                if (f->args().size() == args_.size()) {
+                    size_t i = 0;
+                    while (i < f->args().size()) {
+                        if (f->args()[i].first != args_[i]->getType()) {
+                            flag = false;
+                            break;
+                        }
+                        ++i;
+                    }
+                    if (flag) target = f.get();
+                }
+            }
+            if (!target) {
+                throw std::logic_error("No suitable function.");
+            }
+            type_ = target->returnType();
+            return std::make_unique<CallExprAST>(target->mangledName(), std::move(argsExpr), target->returnType()->mangledName());
+
         }
-        if (!target) {
-            throw std::logic_error("No suitable function.");
-        }
-        type_ = target->returnType();
-        return std::make_unique<CallExprAST>(target->mangledName(), std::move(argsExpr), target->returnType()->mangledName());
     }
     throw std::logic_error("No suitable unary operation.");
 }
@@ -406,7 +455,7 @@ void Parse::FunctionDecl::setBody(std::unique_ptr<CompoundStmt> body)
     body_ = std::move(body);
 }
 
-Parse::ClassDecl::ClassDecl(const std::string& name): name_(name) {
+Parse::ClassDecl::ClassDecl(const std::string& name): name_(name),classType_(nullptr) {
 }
 
 void Parse::ClassDecl::addMemberFunction(std::unique_ptr<FunctionDecl> func) {
@@ -445,13 +494,13 @@ void Parse::ClassDecl::print(std::string indent, bool last) {
 void Parse::ClassDecl::toLLVM(ASTContext* context)
 {
     std::vector<std::pair<Type*, std::string>> memberList;
-    for(auto&p:memberVariables_)
+    for(auto& p:memberVariables_)
     {
         p.first->toLLVMAST(context);
         auto type = p.first->getType();
         memberList.emplace_back(type, p.second);
     }
-    context->addType(name_, std::move(memberList));
+    classType_ = dynamic_cast<CompoundType*>(context->addType(name_, std::move(memberList)));
     
 }
 
@@ -462,25 +511,46 @@ const std::vector<std::pair<std::unique_ptr<Parse::Stmt>, std::string>>& Parse::
 
 void Parse::FunctionDecl::toLLVM(ASTContext* context)
 {
+    SymbolTable::ScopeGuard guard(context->symbolTable());
+    for (auto& arg : funcType_->args()) {
+        context->symbolTable().addVariable(arg.first, arg.second);
+    }
+    if (!isExternal_) {
+        auto body = body_->toBlockExprAST(context);
+        context->setFuncBody(funcType_, std::move(body));
+    }
+}
+
+Parse::FunctionType* Parse::FunctionDecl::registerPrototype(ASTContext* context) {
     std::vector<std::pair<Type*, std::string>> arglist;
+    auto curClass = context->currentClass();
     for (auto& p : args_) {
         p.first->toLLVMAST(context);
         auto type = p.first->getType();
         arglist.emplace_back(type, p.second);
     }
     retType_->toLLVMAST(context);
-    {
-        SymbolTable::ScopeGuard guard(context->symbolTable());
-        for (auto& arg : arglist) {
-            context->symbolTable().addVariable(arg.first, arg.second);
-        }
-        auto fn = context->addFuncPrototype(funcName_, std::move(arglist), retType_->getType(), isExternal_);
-
-        if(!isExternal_)
-        {
-            auto body = body_->toBlockExprAST(context);
-            context->setFuncBody(fn, std::move(body));
-        }
-
-    }
+    funcType_ = context->addFuncPrototype(funcName_, std::move(arglist), retType_->getType(), isExternal_);
+    return funcType_;
 }
+
+void Parse::ClassDecl::registerMemberFunction(ASTContext* context) {
+    ASTContext::ClassScopeGuard guard(*context, classType_);
+    for(auto& f:constructors_) {
+        classType_->addFunction(f->registerPrototype(context));
+    }
+    for(auto& f:memberFunctions_) {
+        classType_->addFunction(f->registerPrototype(context));
+    }
+    if(destructor_)
+        classType_->addFunction(destructor_->registerPrototype(context));
+    for (auto& f : constructors_) {
+        f->toLLVM(context);
+    }
+    for (auto& f : memberFunctions_) {
+        f->toLLVM(context);
+    }
+    if (destructor_)
+        destructor_->toLLVM(context);
+}
+

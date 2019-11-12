@@ -16,6 +16,9 @@ public:
     {
         return type;
     }
+    void setType(const std::string& t) {
+        type = t;
+    }
     virtual ~ExprAST() = default;
     virtual llvm::Value* generateCode(CG::CodeGenerator& cg) =0;
 protected:
@@ -189,6 +192,8 @@ public:
     llvm::Value* generateCode(CG::CodeGenerator& cg) override; 
     void setThis(std::unique_ptr<ExprAST> This);
     const std::string& getName() { return Callee; }
+    void setName(const std::string& name) { Callee = name; }
+    void setArgs(std::vector<std::unique_ptr<ExprAST>> args) { Args = std::move(args); }
 private:
     std::string Callee;
     std::vector<std::unique_ptr<ExprAST>> Args;
@@ -203,8 +208,8 @@ class PrototypeAST
     std::string class_type_;
 
 public:
-    PrototypeAST(const std::string& name, std::vector<std::pair<std::string, std::string>> argList,std::string returnType)
-        : name_(name), arg_list_(std::move(argList)),return_type_(returnType)
+    PrototypeAST(const std::string& name, std::vector<std::pair<std::string, std::string>> argList,std::string returnType,std::string classType="")
+        : name_(name), arg_list_(std::move(argList)),return_type_(returnType),class_type_(classType)
     { }
     ~PrototypeAST() {}
     const std::string& name() const { return name_; }

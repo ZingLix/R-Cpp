@@ -670,17 +670,14 @@ std::unique_ptr<ClassDecl> Parse::Parser::ParseClass() {
     //std::unique_ptr<CompoundStmt> desturctorBlock = nullptr;
     while (lexer_.curToken().type != TokenType::rBrace) {
         if (lexer_.curToken().type == TokenType::Identifier) {
-            if (lexer_.curToken().content == classDecl->name() && lexer_.viewNextToken().type == TokenType::lParenthesis) {   // parsing constructor
+            if (lexer_.curToken().content == classDecl->name() && lexer_.viewNextToken().type == TokenType::lParenthesis) {
+                // parsing constructor
                 getNextToken();
                 auto ArgNames = ParseFunctionArgList();
                 getNextToken();
                 std::unique_ptr<CompoundStmt> b = ParseBlock();
                 auto retType = std::make_unique<TypeStmt>("void");
-                //auto P = std::make_unique<PrototypeAST>(::Function::mangle(f), std::move(argList), "void");
-                //P->setClassType(VarType::mangle(c.type));
                 auto F = std::make_unique<FunctionDecl>("__construct", std::move(ArgNames), std::move(retType), std::move(b));
-                //proto_.push_back(std::move(P));
-                //expr_.push_back(std::move(F));
                 classDecl->addConstructor(std::move(F));
             } else {   // parsing member variable
                 auto type = ParseType();
@@ -863,6 +860,12 @@ void Parser::print() {
 void Parser::convertToLLVM() {
     for (auto& expr : classDecls_) {
         expr->toLLVM(&context_);
+    }
+    for(auto& clas:classDecls_) {
+        clas->registerMemberFunction(&context_);
+    }
+    for (auto& func : functionDecls_) {
+        func->registerPrototype(&context_);
     }
     for(auto& func:functionDecls_)
     {

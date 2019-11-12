@@ -89,6 +89,9 @@ namespace Parse
         BinaryOperatorStmt(std::unique_ptr<Stmt> lhs, std::unique_ptr<Stmt> rhs, OperatorType op);
         void print(std::string indent, bool last) override;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
+        Type* getLHSType();
+        Type* getRHSType();
+
     private:
         std::unique_ptr<Stmt> lhs_;
         std::unique_ptr<Stmt> rhs_;
@@ -197,12 +200,15 @@ namespace Parse
         void print(std::string indent, bool last) override;
         void setBody(std::unique_ptr<CompoundStmt> body);
         void toLLVM(ASTContext* context);
+        FunctionType* registerPrototype(ASTContext* context);
+
     private:
         std::string funcName_;
         std::vector<std::pair<std::unique_ptr<Stmt>, std::string>> args_;
         std::unique_ptr<Stmt> retType_;
         std::unique_ptr<CompoundStmt> body_;
         bool isExternal_;
+        FunctionType* funcType_;
     };
 
 
@@ -219,6 +225,7 @@ namespace Parse
         const std::string& name() { return name_; }
         void toLLVM(ASTContext* context);
         const std::vector<std::pair<std::unique_ptr<Stmt>, std::string>>& getMemberVariables();
+        void registerMemberFunction(ASTContext* context);
 
     private:
         std::string name_;
@@ -226,6 +233,7 @@ namespace Parse
         std::vector<std::unique_ptr<FunctionDecl>> memberFunctions_;
         std::vector<std::unique_ptr<FunctionDecl>> constructors_;
         std::unique_ptr<FunctionDecl> destructor_;
+        CompoundType* classType_;
     };
 
 
