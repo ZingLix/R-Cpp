@@ -1,5 +1,49 @@
 #include "AST.h"
 
+Parse::FunctionType* findSuitableFunction(const std::vector<std::unique_ptr<Parse::Stmt>>& argList, const std::vector<Parse::FunctionType*>* fnList) {
+    Parse::FunctionType* target = nullptr;
+    for (auto& f : *fnList) {
+        bool flag = true;
+        if (f->args().size() == argList.size()) {
+            size_t i = 0;
+            while (i < f->args().size()) {
+                if (f->args()[i].first != argList[i]->getType()) {
+                    flag = false;
+                    break;
+                }
+                ++i;
+            }
+            if (flag) target = f;
+        }
+    }
+    if (!target) {
+        throw std::logic_error("No suitable function.");
+    }
+    return target;
+}
+
+Parse::FunctionType* findSuitableFunction(const std::vector<std::unique_ptr<Parse::Stmt>>& argList, const std::vector<std::unique_ptr<Parse::FunctionType>>* fnList) {
+    Parse::FunctionType* target = nullptr;
+    for (auto& f : *fnList) {
+        bool flag = true;
+        if (f->args().size() == argList.size()) {
+            size_t i = 0;
+            while (i < f->args().size()) {
+                if (f->args()[i].first != argList[i]->getType()) {
+                    flag = false;
+                    break;
+                }
+                ++i;
+            }
+            if (flag) target = f.get();
+        }
+    }
+    if (!target) {
+        throw std::logic_error("No suitable function.");
+    }
+    return target;
+}
+
 Parse::CompoundStmt::CompoundStmt(std::vector<std::unique_ptr<Stmt>> exprs)
     : stmts_(std::move(exprs)) 
 { }
@@ -194,24 +238,7 @@ std::unique_ptr<ExprAST> Parse::UnaryOperatorStmt::toLLVMAST(ASTContext* context
             // a.fun()
             auto stmt = dynamic_cast<BinaryOperatorStmt*>(stmt_.get());
             auto fnList = dynamic_cast<CompoundType*>(stmt->getLHSType())->getFunction(call->getName());
-            FunctionType* target = nullptr;
-            for (auto& f : *fnList) {
-                bool flag = true;
-                if (f->args().size() == args_.size()) {
-                    size_t i = 0;
-                    while (i < f->args().size()) {
-                        if (f->args()[i].first != args_[i]->getType()) {
-                            flag = false;
-                            break;
-                        }
-                        ++i;
-                    }
-                    if (flag) target = f;
-                }
-            }
-            if (!target) {
-                throw std::logic_error("No suitable function.");
-            }
+            auto target = findSuitableFunction(args_, fnList);
             type_ = target->returnType();
             call->setType(type_->mangledName());
             call->setName(target->mangledName());
@@ -220,28 +247,20 @@ std::unique_ptr<ExprAST> Parse::UnaryOperatorStmt::toLLVMAST(ASTContext* context
         }else {
             // func()
             auto fnList = context->symbolTable().getFunction(fn->getTypename());
-            FunctionType* target = nullptr;
-            for (auto& f : *fnList) {
-                bool flag = true;
-                if (f->args().size() == args_.size()) {
-                    size_t i = 0;
-                    while (i < f->args().size()) {
-                        if (f->args()[i].first != args_[i]->getType()) {
-                            flag = false;
-                            break;
-                        }
-                        ++i;
-                    }
-                    if (flag) target = f.get();
-                }
-            }
-            if (!target) {
-                throw std::logic_error("No suitable function.");
-            }
+            auto target = findSuitableFunction(args_, fnList);
             type_ = target->returnType();
             return std::make_unique<CallExprAST>(target->mangledName(), std::move(argsExpr), target->returnType()->mangledName());
 
         }
+    }
+    auto type = dynamic_cast<TypeStmt*>(stmt_.get());
+    if(type && op_==OperatorType::FunctionCall) {
+        auto fnlist = dynamic_cast<CompoundType*>(type->getType())->getConstructors();
+        auto target = findSuitableFunction(args_, fnlist);
+        type_ = type->getType();
+        auto name = context->namelessVarName();
+        context->symbolTable().addNamelessVariable(type_, name);
+        return std::make_unique<NamelessVarExprAST>(name, type_->mangledName(),target->mangledName(),std::move(argsExpr));
     }
     throw std::logic_error("No suitable unary operation.");
 }
@@ -320,57 +339,6 @@ std::unique_ptr<ExprAST> Parse::TypeStmt::toLLVMAST(ASTContext* context)
         throw std::logic_error("Unknown type.");
     }
     return nullptr;
-}
-
-Parse::NamelessVariableStmt::
-NamelessVariableStmt(std::unique_ptr<Stmt> type,
-                     std::vector<std::unique_ptr<Stmt>> args): vartype_(std::move(type)), args_(std::move(args)) {
-}
-
-void Parse::NamelessVariableStmt::print(std::string indent, bool last) {
-    std::cout << indent << "+-NamelessVariableStmt ";
-    vartype_->print(indent, last);
-    std::cout << std::endl;
-    indent += last ? "  " : "| ";
-    for (size_t i = 0; i < args_.size(); ++i) {
-        args_[i]->print(indent, i == args_.size() - 1);
-    }
-}
-
-std::unique_ptr<ExprAST> Parse::NamelessVariableStmt::toLLVMAST(ASTContext* context) {
-    vartype_->toLLVMAST(context);
-    auto t = dynamic_cast<TypeStmt*>(vartype_.get());
-    if(!t)
-    {
-        throw std::logic_error("Invalid type.");
-    }
-    FunctionType* target=nullptr;
-    auto type = dynamic_cast<CompoundType*>(t->getType());
-    if(!type)
-    {
-        throw std::logic_error("No suitable constructor.");
-    }
-    for (auto& f : type->getConstructors()) {
-        if (f->args().size() == args_.size()) {
-            bool flag = true;
-            for (size_t i = 0; i < f->args().size(); ++i) {
-                if (f->args()[i].first != args_[i]->getType()) {
-                    flag = false;
-                    break;
-                }
-            }
-            if (flag) {
-                target = f;
-                break;
-            }
-        }
-    }
-    if (!target) {
-        throw std::logic_error("No suitable constructor.");
-    }
-    std::vector<std::unique_ptr<Stmt>> exprlist;
-    std::string varname = "__" + std::to_string(context->getNamelessVarCount()) + "tmp_";
-    context->symbolTable().addNamelessVariable(t->getType(),varname);
 }
 
 Parse::VariableStmt::VariableStmt(const std::string& name): name_(name) {
@@ -537,13 +505,13 @@ Parse::FunctionType* Parse::FunctionDecl::registerPrototype(ASTContext* context)
 void Parse::ClassDecl::registerMemberFunction(ASTContext* context) {
     ASTContext::ClassScopeGuard guard(*context, classType_);
     for(auto& f:constructors_) {
-        classType_->addFunction(f->registerPrototype(context));
+        classType_->addConstructor(f->registerPrototype(context));
     }
     for(auto& f:memberFunctions_) {
         classType_->addFunction(f->registerPrototype(context));
     }
     if(destructor_)
-        classType_->addFunction(destructor_->registerPrototype(context));
+        classType_->setDestructor(destructor_->registerPrototype(context));
     for (auto& f : constructors_) {
         f->toLLVM(context);
     }

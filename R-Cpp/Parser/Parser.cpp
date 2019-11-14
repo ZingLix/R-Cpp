@@ -175,36 +175,6 @@ std::unique_ptr<Stmt> Parse::Parser::ParseIdentifierExpr() {
         //    return nullptr;
         //}
     return std::make_unique<VariableStmt>(idname);;
-    //}
-    // TODO: is calling a function
-    /*assert(lexer_.curToken().type == TokenType::lParenthesis);
-    auto args = ParseParenExprList();
-    auto fnList = symbol_->getFunction(idname,cur_namespace_);
-    Function target;
-    for(auto&f:*fnList)
-    {
-        bool flag = true;
-        if(f.args.size()==args.size())
-        {
-            size_t i = 0;
-            while(i<f.args.size())
-            {
-                if(f.args[i].type!=args[i]->getType())
-                {
-                    flag = false;
-                    break;
-                }
-                ++i;
-            }
-            if (flag) target = f;
-        }
-    }
-    if(target.name=="")
-    {
-        error("No suitable function.");
-        return nullptr;
-    }
-    return std::make_unique<CallExprAST>(Function::mangle(target), std::move(args),target.returnType);*/
 }
 
 std::unique_ptr<Stmt> Parse::Parser::ParseForExpr() {
@@ -858,8 +828,8 @@ void Parser::print() {
 }
 
 void Parser::convertToLLVM() {
-    for (auto& expr : classDecls_) {
-        expr->toLLVM(&context_);
+    for (auto& clas : classDecls_) {
+        clas->toLLVM(&context_);
     }
     for(auto& clas:classDecls_) {
         clas->registerMemberFunction(&context_);
@@ -949,6 +919,8 @@ void Parse::Parser::ParseInternal() {
         error("Expected : after internal.");
     getNextToken();
 }
+
+
 
 //void Parse::Parser::ParseTemplateClass()
 //{

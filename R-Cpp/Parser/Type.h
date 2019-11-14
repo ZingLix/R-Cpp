@@ -18,24 +18,14 @@ namespace Parse
     class Type
     {
     public:
-        const std::string getTypename()
-        {
-            return name_;
-        }
+        const std::string getTypename() const;
         virtual std::string mangledName() = 0;
         virtual ~Type(){}
-    
-        Type(const std::string& name, std::vector<Type*> typelist={})
-            :name_(name),typelist_(std::move(typelist)),namespaceHierarchy_(nullptr)
-        { }
-        void setNamespaceHierarchy(NamespaceHelper* hierarchy)
-        {
-            namespaceHierarchy_ = hierarchy;
-        }
-        NamespaceHelper* getNamespaceHierarchy() const
-        {
-            return namespaceHierarchy_;
-        }
+
+        Type(const std::string& name, std::vector<Type*> typelist = {});
+
+        void setNamespaceHierarchy(NamespaceHelper* hierarchy);
+        NamespaceHelper* getNamespaceHierarchy() const;
 
     protected:
         std::string name_;
@@ -46,34 +36,11 @@ namespace Parse
     class BuiltinType : public Type
     {
     public:
-        BuiltinType(const std::string& typeName, std::vector<Type*> typelist = {})
-            :Type(typeName, std::move(typelist))
-        {
-            //if (builtinTypeSet_.find(typeName) == builtinTypeSet_.end())
-            //    throw std::logic_error(typeName+ " is not builtin type.");
-        }
+        BuiltinType(const std::string& typeName, std::vector<Type*> typelist = {});
 
-        std::string mangledName() override
-        {
-            auto res = getTypename();
-            if (typelist_.size() != 0) {
-                res += "_";
-                for (auto& v : typelist_) {
-                    auto m = v->mangledName();
-                    if (isdigit(m[0])) {
-                        res += "I" + m;
-                    } else {
-                        res += "T" + std::to_string(m.length()) + m;
-                    }
-                }
-            }
-            return res;
-        }
+        std::string mangledName() override;
+        static const std::set<std::string>& builtinTypeSet();
 
-        static const std::set<std::string>& builtinTypeSet()
-        {
-            return builtinTypeSet_;
-        }
     private:
         static const std::set<std::string> builtinTypeSet_;
     };
@@ -82,37 +49,13 @@ namespace Parse
     {
     public:
         FunctionType(const std::string& functionName, std::vector<std::pair<Type*, std::string>> argTypeList,
-            Type* returnType,Type* classType,bool isExternal=false, std::vector<Type*> typelist = {})
-            :Type(functionName, typelist),argTypeList_(std::move(argTypeList)),returnType_(returnType),classType_(classType),isExternal_(isExternal)
-        {
-            
-        }
-        std::string mangledName() override
-        {
-            auto name = getTypename();
-            if (name == "main") return "main";
-            if (name == "_start") return "_start";
-            if (isExternal_) return name;
-            std::string mangledName = "_";
-            mangledName += isExternal_ ? "Z" : "R";
-            if (classType_ != nullptr) mangledName += classType_->mangledName();
-            mangledName += std::to_string(name.length()) + name;
-            for (auto& v : argTypeList_) {
-                mangledName += v.first->mangledName();
-            }
-            return mangledName;
-        }
-        const std::vector<std::pair<Type*, std::string>>& args()
-        {
-            return argTypeList_;
-        }
-        Type* returnType()
-        {
-            return returnType_;
-        }
-        Type* classType() {
-            return classType_;
-        }
+                     Type* returnType, Type* classType, bool isExternal = false, std::vector<Type*> typelist = {});
+
+        std::string mangledName() override;
+        const std::vector<std::pair<Type*, std::string>>& args();
+        Type* returnType();
+        Type* classType() const;
+
     private:
         std::vector<std::pair<Type*,std::string>> argTypeList_;
         Type* returnType_;
@@ -123,71 +66,20 @@ namespace Parse
     class CompoundType: public Type
     {
     public:
-        CompoundType(const std::string& typeName, std::vector<std::pair<Type*, std::string>> memberList, std::vector<Type*> typelist = {})
-            :Type(typeName,typelist),memberList_(std::move(memberList))
-        { }
-        std::string mangledName() override
-        {
-            auto res = getTypename();
-            if (typelist_.size() != 0) {
-                res += "_";
-                for (auto& v : typelist_) {
-                    auto m = v->mangledName();
-                    if (isdigit(m[0])) {
-                        res += "I" + m;
-                    } else {
-                        res += "T" + std::to_string(m.length()) + m;
-                    }
-                }
-            }
-            return res;
-        }
-        Type* getMemberType(const std::string& name)
-        {
-            for(auto& pair:memberList_)
-            {
-                if (pair.second == name) return pair.first;
-            }
-            return nullptr;
-        }
+        CompoundType(const std::string& typeName, std::vector<std::pair<Type*, std::string>> memberList,
+                     std::vector<Type*> typelist = {});
 
-        int getMemberIndex(const std::string& name)
-        {
-            for(auto it=memberList_.begin();it!=memberList_.end();++it)
-            {
-                if (it->second == name) return it - memberList_.begin();
-            }
-            return -1;
-        }
-
-        const std::vector<FunctionType*>& getConstructors()
-        {
-            return constructors_;
-        }
-
-        FunctionType* getDestructor()
-        {
-            return destructor_;
-        }
-
-        const std::vector<std::pair<Type*, std::string>>& getMemberVariables()
-        {
-            return memberList_;
-        }
-
-        bool hasFunction(const std::string& funcName) {
-            return memberFunctions_.find(funcName) != memberFunctions_.end();
-        }
-
-        const std::vector<FunctionType*>* getFunction(const std::string& funcName) {
-            auto it = memberFunctions_.find(funcName);
-            if (it == memberFunctions_.end()) return nullptr;
-            return &(it->second);
-        }
-
-        void addFunction(FunctionType* func) {
-            memberFunctions_[func->getTypename()].push_back(func);
-        }
+        std::string mangledName() override;
+        Type* getMemberType(const std::string& name);
+        int getMemberIndex(const std::string& name);
+        const std::vector<FunctionType*>* getConstructors() const;
+        FunctionType* getDestructor() const;
+        const std::vector<std::pair<Type*, std::string>>& getMemberVariables() const;
+        bool hasFunction(const std::string& funcName);
+        const std::vector<FunctionType*>* getFunction(const std::string& funcName);
+        void addFunction(FunctionType* func);
+        void addConstructor(FunctionType* func);
+        void setDestructor(FunctionType* func);
 
     private:
         std::vector<std::pair<Type*, std::string>> memberList_;

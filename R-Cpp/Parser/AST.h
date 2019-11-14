@@ -141,17 +141,6 @@ namespace Parse
         std::vector<std::unique_ptr<Stmt>> arglist_;
     };
 
-    class NamelessVariableStmt: public Stmt
-    {
-    public:
-        NamelessVariableStmt(std::unique_ptr<Stmt> type, std::vector<std::unique_ptr<Stmt>> args);
-
-        void print(std::string indent, bool last) override;
-        std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
-    private:
-        std::unique_ptr<Stmt> vartype_;
-        std::vector<std::unique_ptr<Stmt>> args_;
-    };
 
     class VariableStmt: public Stmt
     {

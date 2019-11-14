@@ -61,7 +61,6 @@ namespace Parse {
         std::unique_ptr<Stmt> ParseType();
         //void generateDestructor(Class&c, std::unique_ptr<BlockExprAST> block);
         bool isPostOperator();
-        Token curToken();
 
         Lexer lexer_;
         //Token cur_token_;
@@ -71,6 +70,7 @@ namespace Parse {
         //VarType cur_class_;
         bool isExternal;
         ASTContext context_;
-        //int32_t nameless_var_count_;
     };
 }
+
+
