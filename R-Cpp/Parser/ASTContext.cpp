@@ -53,6 +53,12 @@ void Parse::ASTContext::setFuncBody(FunctionType* func, std::unique_ptr<BlockExp
 
 }
 
+Parse::LiteralType* Parse::ASTContext::addLiteralType(LiteralType::category type, int64_t val)
+{
+    literal_types_.push_back(std::make_unique<LiteralType>(LiteralType::category::Integer, val));
+    return literal_types_.back().get();
+}
+
 std::vector<std::unique_ptr<ClassAST>>* Parse::ASTContext::Class() {
     return &classes_;
 }

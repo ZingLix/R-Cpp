@@ -13,6 +13,8 @@ SymbolTable::SymbolTable():helper_("",nullptr),cur_namespace_(&helper_)
     std::vector<std::pair<std::string, std::string>> typelist;
     typelist.emplace_back("Any", "T");
     helper_.classTemplate.emplace("__ptr",ClassTemplate("__ptr",typelist));
+    typelist.emplace_back("Integer", "Size");
+    helper_.classTemplate.emplace("__arr", ClassTemplate("__arr", typelist));
 }
 
 void SymbolTable::createScope()

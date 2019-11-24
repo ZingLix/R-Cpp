@@ -5,6 +5,7 @@
 #include <memory>
 #include <map>
 #include <llvm/IR/Type.h>
+#include <variant>
 #include <llvm/IR/Value.h>
 
 namespace CG
@@ -18,7 +19,7 @@ namespace Parse
     class Type
     {
     public:
-        const std::string getTypename() const;
+        const std::string& getTypename() const;
         virtual std::string mangledName() = 0;
         virtual ~Type(){}
 
@@ -26,6 +27,7 @@ namespace Parse
 
         void setNamespaceHierarchy(NamespaceHelper* hierarchy);
         NamespaceHelper* getNamespaceHierarchy() const;
+        const std::vector<Type*>& getTemplateArgs() const;
 
     protected:
         std::string name_;
@@ -86,5 +88,23 @@ namespace Parse
         std::map<std::string, std::vector<FunctionType*>> memberFunctions_;
         std::vector<FunctionType*> constructors_;
         FunctionType* destructor_;
+    };
+
+    class LiteralType: public Type
+    {
+    public:
+        enum class category
+        {
+            Integer
+        };
+
+        LiteralType(category type, std::int64_t val):Type(""), type_(type), val_(val){}
+        std::string mangledName() override
+        {
+            return std::to_string(val_);
+        }
+    private:
+        category type_;
+        std::int64_t val_;
     };
 }

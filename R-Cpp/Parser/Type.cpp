@@ -4,7 +4,7 @@
 const std::set<std::string> Parse::BuiltinType::builtinTypeSet_
     = { "i32","i64","u32","u64","bool","float","double","void" };
 
-const std::string Parse::Type::getTypename() const {
+const std::string& Parse::Type::getTypename() const {
     return name_;
 }
 
@@ -18,6 +18,11 @@ void Parse::Type::setNamespaceHierarchy(NamespaceHelper* hierarchy) {
 
 Parse::NamespaceHelper* Parse::Type::getNamespaceHierarchy() const {
     return namespaceHierarchy_;
+}
+
+const std::vector<Parse::Type*>& Parse::Type::getTemplateArgs() const
+{
+    return typelist_;
 }
 
 Parse::BuiltinType::BuiltinType(const std::string& typeName, std::vector<Type*> typelist): Type(
@@ -66,7 +71,8 @@ std::string Parse::FunctionType::mangledName() {
     if (classType_ != nullptr) mangledName += classType_->mangledName();
     mangledName += std::to_string(name.length()) + name;
     for (auto& v : argTypeList_) {
-        mangledName += v.first->mangledName();
+        auto tmp = v.first->mangledName();
+        mangledName += "I"+std::to_string(tmp.length())+tmp ;
     }
     return mangledName;
 }

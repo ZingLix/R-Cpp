@@ -1,4 +1,5 @@
 #include "AST.h"
+#include <iostream>
 
 Parse::FunctionType* findSuitableFunction(const std::vector<std::unique_ptr<Parse::Stmt>>& argList, const std::vector<Parse::FunctionType*>* fnList) {
     Parse::FunctionType* target = nullptr;
@@ -262,6 +263,16 @@ std::unique_ptr<ExprAST> Parse::UnaryOperatorStmt::toLLVMAST(ASTContext* context
         context->symbolTable().addNamelessVariable(type_, name);
         return std::make_unique<NamelessVarExprAST>(name, type_->mangledName(),target->mangledName(),std::move(argsExpr));
     }
+    auto var = dynamic_cast<VariableStmt*>(stmt_.get());
+    if(var && op_==OperatorType::Subscript)
+    {
+        if(var->getType()->getTypename()!="__arr")
+        {
+            throw std::logic_error("No suitable operation between " + var->getType()->getTypename() + " and [].");
+        }
+        type_ = var->getType()->getTemplateArgs()[0];
+        return std::make_unique<UnaryExprAST>(std::move(expr), OperatorType::Subscript, std::move(argsExpr), type_->mangledName());
+    }
     throw std::logic_error("No suitable unary operation.");
 }
 
@@ -317,8 +328,16 @@ std::string Parse::TypeStmt::getName()
         name += "<";
         for (size_t i = 0; i < arglist_.size(); ++i)
         {
-            name += dynamic_cast<TypeStmt*>(arglist_[i].get())->getName();
-            if (i != arglist_.size() - 1) std::cout << ", ";
+            auto type = dynamic_cast<TypeStmt*>(arglist_[i].get());
+            if(type)
+                name += type->getName();
+            else
+            {
+                auto num = dynamic_cast<IntegerStmt*>(arglist_[i].get());
+                assert(num != nullptr);
+                name += std::to_string(num->getNumber());
+            }
+            if (i != arglist_.size() - 1) name += ", ";
         }
         name += ">";
     }
@@ -331,7 +350,16 @@ std::unique_ptr<ExprAST> Parse::TypeStmt::toLLVMAST(ASTContext* context)
     for(auto& stmt:arglist_)
     {
         stmt->toLLVMAST(context);
-        typelist.push_back(stmt->getType());
+        if(dynamic_cast<TypeStmt*>(stmt.get()))
+            typelist.push_back(stmt->getType());
+        else 
+        {
+            auto integer = dynamic_cast<IntegerStmt*>(stmt.get());
+            if (integer)
+                typelist.push_back(context->addLiteralType(LiteralType::category::Integer, integer->getNumber()));
+            else
+                throw std::logic_error("Unsupported type in template args.");
+        }
     }
     type_ = context->symbolTable().getType(name_, typelist);
     if(!type_)
@@ -371,6 +399,11 @@ Parse::IntegerStmt::IntegerStmt(std::int64_t val): val_(val) {
 
 void Parse::IntegerStmt::print(std::string indent, bool last) {
     std::cout << indent << "+-IntegerStmt " << val_ << std::endl;
+}
+
+std::int64_t Parse::IntegerStmt::getNumber() const
+{
+    return val_;
 }
 
 std::unique_ptr<ExprAST> Parse::IntegerStmt::toLLVMAST(ASTContext*c)

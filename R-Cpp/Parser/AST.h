@@ -5,7 +5,6 @@
 #include "../Util/Type.h"
 #include "../CodeGenerator/AST.h"
 #include "ASTContext.h"
-#include <iostream>
 
 namespace Parse
 {
@@ -158,6 +157,7 @@ namespace Parse
     public:
         IntegerStmt(std::int64_t val);
         void print(std::string indent, bool last) override;
+        std::int64_t getNumber() const;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
         std::int64_t val_;

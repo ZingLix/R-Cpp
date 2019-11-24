@@ -789,7 +789,18 @@ std::vector<std::unique_ptr<Stmt>> Parse::Parser::ParseAngleExprList() {
     //auto exprs = ParseExprList(TokenType::rAngle);
     std::vector<std::unique_ptr<Stmt>> exprs;
     while (lexer_.curToken().type != TokenType::rAngle) {
-        exprs.push_back(ParseType());
+        if(lexer_.curToken().type==TokenType::Identifier)
+        {
+            exprs.push_back(ParseType());
+        }else if(lexer_.curToken().type==TokenType::Integer)
+        {
+            exprs.push_back(ParseIntegerExpr());
+        }else
+        {
+            error("Unexpected identifier in angle expr list.");
+            return { };
+        }
+        
         if (lexer_.curToken().type == TokenType::Comma) {
             getNextToken();
         } else if (lexer_.curToken().type != TokenType::rAngle) {
