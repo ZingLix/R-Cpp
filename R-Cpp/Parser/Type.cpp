@@ -1,5 +1,6 @@
 #include "Type.h"
 #include "../CodeGenerator/CodeGenerator.h"
+#include <stack>
 
 const std::set<std::string> Parse::BuiltinType::builtinTypeSet_
     = { "i32","i64","u32","u64","bool","float","double","void" };
@@ -23,6 +24,21 @@ Parse::NamespaceHelper* Parse::Type::getNamespaceHierarchy() const {
 const std::vector<Parse::Type*>& Parse::Type::getTemplateArgs() const
 {
     return typelist_;
+}
+
+std::string Parse::Type::mangledNameNamespacePrefix() const {
+    std::stack<NamespaceHelper*> s;
+    auto ns = namespaceHierarchy_;
+    while (ns->lastNS != nullptr) {
+        s.push(ns);
+        ns = ns->lastNS;
+    }
+    std::string prefix;
+    while (!s.empty()) {
+        prefix += std::to_string(s.top()->name.length())+ s.top()->name;
+        s.pop();
+    }
+    return prefix;
 }
 
 Parse::BuiltinType::BuiltinType(const std::string& typeName, std::vector<Type*> typelist): Type(
@@ -68,6 +84,7 @@ std::string Parse::FunctionType::mangledName() {
     if (isExternal_) return name;
     std::string mangledName = "_";
     mangledName += isExternal_ ? "Z" : "R";
+    mangledName += mangledNameNamespacePrefix();
     if (classType_ != nullptr) mangledName += classType_->mangledName();
     mangledName += std::to_string(name.length()) + name;
     for (auto& v : argTypeList_) {
@@ -97,7 +114,7 @@ Parse::CompoundType::CompoundType(const std::string& typeName, std::vector<std::
 std::string Parse::CompoundType::mangledName() {
     auto res = getTypename();
     if (typelist_.size() != 0) {
-        res += "_";
+        res += "_"+mangledNameNamespacePrefix();
         for (auto& v : typelist_) {
             auto m = v->mangledName();
             if (isdigit(m[0])) {

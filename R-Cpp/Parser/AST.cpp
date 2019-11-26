@@ -157,10 +157,27 @@ void Parse::BinaryOperatorStmt::print(std::string indent, bool last) {
 
 std::unique_ptr<ExprAST> Parse::BinaryOperatorStmt::toLLVMAST(ASTContext* context)
 {
+    if(op_==OperatorType::ScopeResolution) {
+        auto l = dynamic_cast<VariableStmt*>(lhs_.get());
+        if (!l) throw std::logic_error("Left hand of :: is not a valid scope name.");
+        auto ns = context->symbolTable().getNamespace(l->getName());
+        if (!ns) throw std::logic_error("No namespace named " + l->getName() + ".");
+        context->symbolTable().setSpecfiedNamespace(ns);
+        auto ret= rhs_->toLLVMAST(context);
+        context->symbolTable().unsetSpecfiedNamespace();
+        return ret;
+    }
     auto l = lhs_->toLLVMAST(context);
-    if(op_==OperatorType::MemberAccessP)
+    if(op_==OperatorType::MemberAccessP||op_==OperatorType::MemberAccessA)
     {
-        auto type = dynamic_cast<CompoundType*>(context->symbolTable().getType(l->getType()));
+        auto t = lhs_->getType();
+        if(op_==OperatorType::MemberAccessA) {
+            if (t->getTypename() != "__ptr") throw std::logic_error("Operator -> only suits for pointer.");
+            t = t->getTemplateArgs()[0];
+            lhs_->setType(t);
+            l = std::make_unique<UnaryExprAST>(std::move(l), OperatorType::Dereference, t->mangledName());
+        }
+        auto type = dynamic_cast<CompoundType*>(t);
         if(!type)
         {
             throw std::logic_error("Invalid member access.");
@@ -345,7 +362,9 @@ std::string Parse::TypeStmt::getName()
 }
 
 std::unique_ptr<ExprAST> Parse::TypeStmt::toLLVMAST(ASTContext* context)
-{
+{   // do not return ExprAST, only to check whether the type is valid.
+    // Return nullptr when everything is ok, otherwise an exception will
+    // be thrown out.
     std::vector<Type*> typelist;
     for(auto& stmt:arglist_)
     {
@@ -502,7 +521,15 @@ void Parse::ClassDecl::toLLVM(ASTContext* context)
         memberList.emplace_back(type, p.second);
     }
     classType_ = dynamic_cast<CompoundType*>(context->addType(name_, std::move(memberList)));
-    
+    generateNewFunction(context);
+}
+
+void Parse::ClassDecl::generateNewFunction(ASTContext* context) {
+    std::vector<Type*> typeArgs;
+    typeArgs.push_back(classType_);
+    SymbolTable::NamespaceGuard guard(context->symbolTable(), name());
+    context->symbolTable().addFunction(
+    "new", std::vector<std::pair<Type*, std::string>>{},context->symbolTable().getType("__ptr",typeArgs));
 }
 
 const std::vector<std::pair<std::unique_ptr<Parse::Stmt>, std::string>>& Parse::ClassDecl::getMemberVariables()
@@ -516,7 +543,7 @@ void Parse::FunctionDecl::toLLVM(ASTContext* context)
     for (auto& arg : funcType_->args()) {
         context->symbolTable().addVariable(arg.first, arg.second);
     }
-    if (!isExternal_) {
+    if (!isExternal_&&body_) {
         auto body = body_->toBlockExprAST(context);
         context->setFuncBody(funcType_, std::move(body));
     }
@@ -532,12 +559,14 @@ Parse::FunctionType* Parse::FunctionDecl::registerPrototype(ASTContext* context)
     }
     retType_->toLLVMAST(context);
     funcType_ = context->addFuncPrototype(funcName_, std::move(arglist), retType_->getType(), isExternal_);
+    
     return funcType_;
 }
 
 void Parse::ClassDecl::registerMemberFunction(ASTContext* context) {
     ASTContext::ClassScopeGuard guard(*context, classType_);
     for(auto& f:constructors_) {
+        
         classType_->addConstructor(f->registerPrototype(context));
     }
     for(auto& f:memberFunctions_) {

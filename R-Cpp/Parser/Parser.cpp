@@ -5,13 +5,13 @@
 
 using namespace Parse;
 
-std::unique_ptr<Stmt> Parser::ParseIntegerExpr() {
+std::unique_ptr<Stmt> Parse::Parser::ParseIntegerExpr() {
     auto res = std::make_unique<IntegerStmt>(std::stoi(lexer_.curToken().content));
     getNextToken();
     return res;
 }
 
-std::unique_ptr<Stmt> Parser::ParseFloatExpr() {
+std::unique_ptr<Stmt> Parse::Parser::ParseFloatExpr() {
     auto res = std::make_unique<FloatStmt>(std::stof(lexer_.curToken().content));
     getNextToken();
     return res;
@@ -106,9 +106,15 @@ std::unique_ptr<Stmt> Parse::Parser::ParsePostOperator(std::unique_ptr<Stmt> e) 
         e = std::make_unique<UnaryOperatorStmt>(std::move(e), OperatorType::PostIncrement);
     } else if (lexer_.curToken().type == TokenType::Minus) {
         if (lexer_.viewNextToken().type == TokenType::rAngle) {
-            //assert(e->getType().typeName == "__ptr");
             assert(getNextBinOperator() == OperatorType::MemberAccessA);
-            e = std::make_unique<BinaryOperatorStmt>(std::move(e), ParseExpression(), OperatorType::MemberAccessA);
+            //getNextToken();
+            
+            if (lexer_.curToken().type != TokenType::Identifier) {
+                error("Expected members of class.");
+            }
+            auto name = lexer_.curToken().content;
+            getNextToken();
+            e = std::make_unique<BinaryOperatorStmt>(std::move(e), std::make_unique<VariableStmt>(name), OperatorType::MemberAccessA);
             //e = ParseMemberAccess(std::move(e), OperatorType::MemberAccessP);
         } else {
             assert(getNextUnaryOperator() == OperatorType::PreDecrement);
@@ -116,21 +122,20 @@ std::unique_ptr<Stmt> Parse::Parser::ParsePostOperator(std::unique_ptr<Stmt> e) 
         }
 
     }
-    // TODO: Namspace
-    /* else if(lexer_.curToken().type==TokenType::Colon)
+    else if(lexer_.curToken().type==TokenType::Colon)
     {
         assert(getNextBinOperator() == OperatorType::ScopeResolution);
-        e=
-        auto p = dynamic_cast<NamespaceExprAST*>(e.get());
-        if(p==nullptr)
-        {
-            error("Left side of :: is not a namespace identifier.");
-            return nullptr;
-        }
-        cur_namespace_.push_back(p->getName());
-        e = ParsePrimary();
-        cur_namespace_.clear();
-    }*/
+        e = std::make_unique<BinaryOperatorStmt>(std::move(e), ParsePrimary(), OperatorType::ScopeResolution);
+        //auto p = dynamic_cast<NamespaceExprAST*>(e.get());
+        //if(p==nullptr)
+        //{
+        //    error("Left side of :: is not a namespace identifier.");
+        //    return nullptr;
+        //}
+        //cur_namespace_.push_back(p->getName());
+        //e = ParsePrimary();
+        //cur_namespace_.clear();
+    }
     return e;
 }
 
@@ -481,7 +486,7 @@ std::unique_ptr<Stmt> Parse::Parser::ParseIfExpr() {
     return std::make_unique<IfStmt>(std::move(cond), std::move(then));
 }
 
-std::vector<std::pair<std::unique_ptr<Stmt>, std::string>> Parser::ParseFunctionArgList() {
+std::vector<std::pair<std::unique_ptr<Stmt>, std::string>> Parse::Parser::ParseFunctionArgList() {
     std::vector<std::pair<std::unique_ptr<Stmt>, std::string>> ArgNames;
     getNextToken();
     while (lexer_.curToken().type != TokenType::rParenthesis) {
@@ -636,7 +641,8 @@ std::unique_ptr<ClassDecl> Parse::Parser::ParseClass() {
         error("Expect class body.");
         return nullptr;
     }
-    getNextToken(); // eat ;
+    getNextToken(); // eat {
+    SymbolTable::NamespaceGuard guard(context().symbolTable(), classDecl->name());
     //std::unique_ptr<CompoundStmt> desturctorBlock = nullptr;
     while (lexer_.curToken().type != TokenType::rBrace) {
         if (lexer_.curToken().type == TokenType::Identifier) {
@@ -694,7 +700,7 @@ std::unique_ptr<ClassDecl> Parse::Parser::ParseClass() {
             //c.destructor=f;
         }
         if (lexer_.curToken().type == TokenType::Semicolon) getNextToken();
-
+        //context().symbolTable().addFunction()
         //symbol_->addFunction(generateFunction_new(c.type));
         //generateDestructor(c, std::move(desturctorBlock));
         //cur_class_ = tmp;
@@ -827,7 +833,7 @@ std::unique_ptr<Stmt> Parse::Parser::ParseType() {
     return std::make_unique<TypeStmt>(type);
 }
 
-void Parser::print() {
+void Parse::Parser::print() {
     for (auto& expr : classDecls_) {
         expr->print("", true);
         std::cout << std::endl;
@@ -838,7 +844,7 @@ void Parser::print() {
     }
 }
 
-void Parser::convertToLLVM() {
+void Parse::Parser::convertToLLVM() {
     for (auto& clas : classDecls_) {
         clas->toLLVM(&context_);
     }
@@ -854,7 +860,7 @@ void Parser::convertToLLVM() {
     }
 }
 
-ASTContext& Parser::context()
+ASTContext& Parse::Parser::context()
 {
     return context_;
 }

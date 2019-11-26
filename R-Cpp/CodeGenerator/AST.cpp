@@ -393,13 +393,14 @@ llvm::StructType* ClassAST::generateCode(CodeGenerator& cg)
     //{
     //    cg.symbol().getFunction(fn.name)
     //}
-   // generateFunction_new(cg);
+    //generateFunction_new(cg);
     return type;
 }
 
 llvm::Value* ClassAST::generateFunction_new(CodeGenerator& cg)
 {
-    Parse::FunctionType fn("new",{},nullptr,type_);
+    Parse::FunctionType fn("new",{},nullptr,nullptr);
+    fn.setNamespaceHierarchy(type_->getNamespaceHierarchy()->nextNS[type_->getTypename()].get());
     std::string fnname = "new";
     auto FT = FunctionType::get(cg.getPtrTypeOf(type_->mangledName()), std::vector<Type*>(), false);
     auto Func = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, fn.mangledName(), cg.getModule());

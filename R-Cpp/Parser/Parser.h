@@ -59,6 +59,7 @@ namespace Parse {
         std::unique_ptr<Stmt> MergeExpr(std::unique_ptr<Stmt>, std::unique_ptr<Stmt>, OperatorType);
         std::vector<std::unique_ptr<Stmt>> ParseExprList(TokenType endToken);
         std::unique_ptr<Stmt> ParseType();
+        void generateNewForClass(Type* type);
         //void generateDestructor(Class&c, std::unique_ptr<BlockExprAST> block);
         bool isPostOperator();
 

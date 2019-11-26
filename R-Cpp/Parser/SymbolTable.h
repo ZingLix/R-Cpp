@@ -74,9 +74,10 @@ namespace Parse {
         void addVariable(Type*type, const std::string& name);
         CompoundType* addType(const std::string& name, std::vector<std::pair<Type*, std::string>> memberList);
         Type* getType(const std::string& name,const std::vector<Type*>& args={});
-        FunctionType* addFunction(const std::string& name, std::vector<std::pair<Type*, std::string>> argList,Type* returnType,bool isExternal=false);
+        FunctionType* addFunction(const std::string& name, std::vector<std::pair<Type*, std::string>> argList,Type* returnType,Type* classType=nullptr,bool isExternal=false);
         const std::vector<std::unique_ptr<FunctionType>>* getFunction(const std::string& name, const std::vector<std::string>& ns_hierarchy={});
         const std::vector<std::string>& getNamespaceHierarchy();
+        NamespaceHelper* getNamespace(const std::string& name) const;
         //void addClassTemplate(ClassTemplate template_);
         //ClassTemplate getClassTemplate(std::string name);
         //std::string getMangledClassName(VarType type);
@@ -87,6 +88,8 @@ namespace Parse {
         {
             nameless_values_.push_back(std::make_unique<Variable>(type,name));
         }
+        void setSpecfiedNamespace(NamespaceHelper* ns);
+        void unsetSpecfiedNamespace();
 
         class ScopeGuard
         {
@@ -121,6 +124,7 @@ namespace Parse {
         std::vector<std::unique_ptr<Variable>> nameless_values_;
         NamespaceHelper helper_;
         NamespaceHelper* cur_namespace_;
+        NamespaceHelper* specfied_namespace_;
         std::vector<std::string> ns_hierarchy_;
     };
 }
