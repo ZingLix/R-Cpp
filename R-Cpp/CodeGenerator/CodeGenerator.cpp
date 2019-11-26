@@ -137,6 +137,10 @@ void CodeGenerator::generate()
     {
         p->generateCode(*this)->print(llvm::errs());
     }
+    for (auto& c : *context_.Class()) {
+        c->generateFunction_new(*this)->print(llvm::errs());
+        std::cout << std::endl;
+    }
     //for (auto& c : context_.Classes()) {
     //    c->generateFunction_new(*this)->print(llvm::errs());
     //}

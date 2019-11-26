@@ -4,7 +4,6 @@
 #include <vector>
 #include "../Util/Operator.h"
 #include <llvm/IR/Value.h>
-#include "../Util/Type.h"
 #include <llvm/IR/Instructions.h>
 #include "../Parser/Type.h"
 

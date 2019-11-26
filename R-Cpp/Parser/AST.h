@@ -2,7 +2,6 @@
 #include <memory>
 #include <vector>
 #include "../Util/Operator.h"
-#include "../Util/Type.h"
 #include "../CodeGenerator/AST.h"
 #include "ASTContext.h"
 
@@ -24,6 +23,10 @@ namespace Parse
         auto getType()
         {
             return type_;
+        }
+
+        void setType(Type* t) {
+            type_ = t;
         }
 
         virtual void print(std::string indent, bool last)=0;
@@ -130,7 +133,6 @@ namespace Parse
     {
     public:
         TypeStmt(const std::string& name, std::vector<std::unique_ptr<Stmt>> arglist = {});
-
         void print(std::string indent, bool last) override;
 
         std::string getName();
@@ -215,6 +217,7 @@ namespace Parse
         void toLLVM(ASTContext* context);
         const std::vector<std::pair<std::unique_ptr<Stmt>, std::string>>& getMemberVariables();
         void registerMemberFunction(ASTContext* context);
+        void generateNewFunction(ASTContext* context);
 
     private:
         std::string name_;

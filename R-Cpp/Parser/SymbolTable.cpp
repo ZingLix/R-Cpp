@@ -3,7 +3,7 @@
 
 using namespace Parse;
 
-SymbolTable::SymbolTable():helper_("",nullptr),cur_namespace_(&helper_)
+SymbolTable::SymbolTable():helper_("",nullptr),cur_namespace_(&helper_),specfied_namespace_(nullptr)
 {
     createScope();
     for(auto& s:BuiltinType::builtinTypeSet())
@@ -69,6 +69,24 @@ CompoundType* SymbolTable::addType(const std::string& name, std::vector<std::pai
 
 Type* SymbolTable::getType(const std::string& t, const std::vector<Type*>& args)
 {
+    if(specfied_namespace_) {
+        auto type = specfied_namespace_->namedType.find(t);
+        if (type != specfied_namespace_->namedType.end()) return type->second.get();
+        auto func = specfied_namespace_->namedFunction.find(t);
+        if (func != specfied_namespace_->namedFunction.end()) return func->second[0].get();
+        auto template_ = specfied_namespace_->classTemplate.find(t);
+        if (template_ != specfied_namespace_->classTemplate.end()) {   //find by name
+            if (template_->second.typeList.size() == args.size()) {   // check if the arg size is same
+                for (auto& p : template_->second.instantiatedType) {   // check if has been instantiated
+                    if (p.first == args) {
+                        return p.second.get();
+                    }
+                }
+                //instantiate template
+                return template_->second.instantiate(args);
+            }
+        }
+    }
     NamespaceHelper* ns = cur_namespace_;
     if(args.size()==0)
     {
@@ -111,9 +129,10 @@ Type* SymbolTable::getType(const std::string& t, const std::vector<Type*>& args)
     return nullptr;
 }
 
-FunctionType* SymbolTable::addFunction(const std::string& name, std::vector<std::pair<Type*, std::string>> argList, Type* returnType, bool isExternal)
+FunctionType* SymbolTable::addFunction(const std::string& name, std::vector<std::pair<Type*, std::string>> argList, Type* returnType,Type* classType, bool isExternal)
 {
-    auto fn = std::make_unique<FunctionType>(name, std::move(argList), returnType, nullptr, isExternal);
+    auto fn = std::make_unique<FunctionType>(name, std::move(argList), returnType, classType, isExternal);
+    fn->setNamespaceHierarchy(cur_namespace_);
     auto ret = fn.get();
     cur_namespace_->namedFunction[name].push_back(std::move(fn));
     return ret;
@@ -121,6 +140,9 @@ FunctionType* SymbolTable::addFunction(const std::string& name, std::vector<std:
 
 const std::vector<std::unique_ptr<FunctionType>>* SymbolTable::getFunction(const std::string& name, const std::vector<std::string>& ns_hierarchy)
 {
+    if(specfied_namespace_) {
+        return getRawFunction_(name, ns_hierarchy, specfied_namespace_);
+    }
     auto cur = cur_namespace_;
     while (cur!=nullptr)
     {
@@ -134,6 +156,21 @@ const std::vector<std::unique_ptr<FunctionType>>* SymbolTable::getFunction(const
 const std::vector<std::string>& SymbolTable::getNamespaceHierarchy()
 {
     return ns_hierarchy_;
+}
+
+NamespaceHelper* SymbolTable::getNamespace(const std::string& name) const {
+    if(specfied_namespace_) {
+        auto it = specfied_namespace_->nextNS.find(name);
+        if (it != specfied_namespace_->nextNS.end()) return it->second.get();
+        return nullptr;
+    }
+    auto cur = cur_namespace_;
+    while (cur != nullptr) {
+        auto it = cur->nextNS.find(name);
+        if (it!=cur->nextNS.end()) return it->second.get();
+        cur = cur->lastNS;
+    }
+    return nullptr;
 }
 
 const std::vector<std::unique_ptr<FunctionType>>* SymbolTable::getRawFunction_(const std::string& name, const std::vector<std::string>& ns_hier,NamespaceHelper* ns)
@@ -225,6 +262,14 @@ void SymbolTable::setAlias(const std::string& newName, Type* oldType)
 //    nameless_values_.clear();
 //}
 
+
+void SymbolTable::setSpecfiedNamespace(NamespaceHelper* ns) {
+    specfied_namespace_ = ns;
+}
+
+void SymbolTable::unsetSpecfiedNamespace() {
+    specfied_namespace_ = nullptr;
+}
 
 SymbolTable::ScopeGuard::ScopeGuard(SymbolTable& st): st_(st), block_(nullptr)
 {

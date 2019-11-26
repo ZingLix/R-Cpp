@@ -37,7 +37,7 @@ Parse::FunctionType* Parse::ASTContext::addFuncPrototype(const std::string& name
     for (auto& m : argList) {
         members.emplace_back(m.first->mangledName(), m.second);
     }
-    auto fn = symbol_table_->addFunction(name, std::move(argList), returnType, isExternal);
+    auto fn = symbol_table_->addFunction(name, std::move(argList), returnType,currentClass(),  isExternal);
     prototype_.push_back(std::make_unique<PrototypeAST>(fn->mangledName(), std::move(members),
                                                         returnType->mangledName(),
                                                         currentClass() == nullptr

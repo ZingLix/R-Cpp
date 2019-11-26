@@ -28,6 +28,7 @@ namespace Parse
         void setNamespaceHierarchy(NamespaceHelper* hierarchy);
         NamespaceHelper* getNamespaceHierarchy() const;
         const std::vector<Type*>& getTemplateArgs() const;
+        std::string mangledNameNamespacePrefix() const;
 
     protected:
         std::string name_;
