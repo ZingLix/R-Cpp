@@ -850,13 +850,13 @@ void Parser::dumpToXML(const std::string& filename) {
         std::cout << "Open dump file " << filename << " error." << std::endl;
         return;
     }
-    fs << "<AST>";
+    fs << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"<<std::endl;
+    fs << "<AST>"<<std::endl;
     for (auto& expr : classDecls_) {
-        fs << expr->dumpToXML();
+        fs << expr->dumpToXML()<<std::endl;
     }
     for (auto& expr : functionDecls_) {
-        fs << expr->dumpToXML();
-        std::cout << expr->dumpToXML();
+        fs << expr->dumpToXML()<<std::endl;
     }
     fs << "</AST>";
     std::cout << "The AST dump file had been written to " << filename << ".\n";

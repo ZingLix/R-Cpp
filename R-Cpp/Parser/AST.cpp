@@ -106,11 +106,11 @@ void Parse::IfStmt::print(std::string indent, bool last) {
 }
 
 std::string Parse::IfStmt::dumpToXML() const {
-    std::string str = "<IfStmt>";
+    std::string str = "<Stmt type=\"TypeStmt\">";
     str += toXMLPair("condition", cond_->dumpToXML());
     str += toXMLPair("then", then_->dumpToXML());
     if (else_) str += toXMLPair("then", else_->dumpToXML());
-    str += "</IfStmt>";
+    str += "</Stmt>";
     return str;
 }
 
@@ -140,12 +140,12 @@ void Parse::ForStmt::print(std::string indent, bool last) {
 }
 
 std::string Parse::ForStmt::dumpToXML() const {
-    std::string str = "<ForStmt>";
+    std::string str = "<Stmt Type=\"TypeStmt\">";
     str += toXMLPair("start", start_->dumpToXML());
     str += toXMLPair("condition", cond_->dumpToXML());
     str += toXMLPair("end", end_->dumpToXML());
     str += toXMLPair("body", body_->dumpToXML());
-    str += "</ForStmt>";
+    str += "</Stmt>";
     return str;
 }
 
@@ -169,7 +169,10 @@ void Parse::ReturnStmt::print(std::string indent, bool last) {
 }
 
 std::string Parse::ReturnStmt::dumpToXML() const {
-    return toXMLPair("ReturnStmt", ret_val_->dumpToXML());
+    std::string str = "<Stmt type=\"ReturnStmt\">";
+    str+= ret_val_->dumpToXML();
+    str += "</Stmt>";
+    return str;
 }
 
 std::unique_ptr<ExprAST> Parse::ReturnStmt::toLLVMAST(ASTContext* context)
@@ -191,10 +194,10 @@ void Parse::BinaryOperatorStmt::print(std::string indent, bool last) {
 }
 
 std::string Parse::BinaryOperatorStmt::dumpToXML() const {
-    std::string str = "<BinaryOperatorStmt operator=\"" + operatorDescription(op_) + "\">";
+    std::string str = "<Stmt type=\"BinaryOperatorStmt\" operator=\"" + std::to_string (static_cast<int>( op_))+"\">";
     str += toXMLPair("LHS", lhs_->dumpToXML());
     str += toXMLPair("RHS", rhs_->dumpToXML());
-    str += "</BinaryOperatorStmt>";
+    str += "</Stmt>";
     return str;
 }
 
@@ -286,14 +289,13 @@ void Parse::UnaryOperatorStmt::print(std::string indent, bool last) {
 }
 
 std::string Parse::UnaryOperatorStmt::dumpToXML() const {
-    std::string str = "<UnaryOperatorStmt operator=\"" + operatorDescription(op_) + "\">";
+    std::string str = "<Stmt type=\"UnaryOperatorStmt\" operator=\"" + std::to_string(static_cast<int>(op_)) + "\">";
     str += toXMLPair("operand",stmt_->dumpToXML());
     for(auto& arg:args_) {
         str += toXMLPair("arugment", arg->dumpToXML());
     }
-    str += "</UnaryOperatorStmt>";
+    str += "</Stmt>";
     return str;
-
 }
 
 std::unique_ptr<ExprAST> Parse::UnaryOperatorStmt::toLLVMAST(ASTContext* context) {
@@ -365,11 +367,11 @@ void Parse::VariableDefStmt::print(std::string indent, bool last) {
 }
 
 std::string Parse::VariableDefStmt::dumpToXML() const {
-    std::string str = "<VariableDefStmt name=\"" + name_ + "\">";
+    std::string str = "<Stmt type=\"VariableDefStmt\" name=\"" + name_ + "\">";
     str += toXMLPair("type", vartype_->dumpToXML());
     if(init_val_)
         str += toXMLPair("initVal", init_val_->dumpToXML());
-    str += "</VariableDefStmt>";
+    str += "</Stmt>";
     return str;
 }
 
@@ -425,11 +427,11 @@ std::string Parse::TypeStmt::getName()
 }
 
 std::string Parse::TypeStmt::dumpToXML() const {
-    std::string str = "<TypeStmt name=\"" + name_ + "\">";
+    std::string str = "<Stmt type=\"TypeStmt\" name=\"" + name_ + "\">";
     for(auto& arg:arglist_) {
         str += toXMLPair("argument", arg->dumpToXML());
     }
-    str += "</TypeStmt>";
+    str += "</Stmt>";
     return str;
 }
 
@@ -468,7 +470,7 @@ void Parse::VariableStmt::print(std::string indent, bool last) {
 }
 
 std::string Parse::VariableStmt::dumpToXML() const {
-    return "<VariableStmt name=\"" + name_ + "\"></VariableStmt>";
+    return "<Stmt type=\"VariableStmt\" name=\"" + name_ + "\"></Stmt>";
 }
 
 std::unique_ptr<ExprAST> Parse::VariableStmt::toLLVMAST(ASTContext* context) {
@@ -502,7 +504,7 @@ std::int64_t Parse::IntegerStmt::getNumber() const
 }
 
 std::string Parse::IntegerStmt::dumpToXML() const {
-    return "<IntegerStmt value=" + std::to_string(val_) + "></IntegerStmt>";
+    return "<Stmt type=\"IntegerStmt\" value=\"" + std::to_string(val_) + "\"></Stmt>";
 }
 
 std::unique_ptr<ExprAST> Parse::IntegerStmt::toLLVMAST(ASTContext*c)
@@ -523,7 +525,7 @@ double Parse::FloatStmt::getNumber() const {
 }
 
 std::string Parse::FloatStmt::dumpToXML() const {
-    return "<FloatStmt value=" + std::to_string(val_) + "></FloatStmt>";
+    return "<Stmt type=\"FloatStmt\" value=\"" + std::to_string(val_) + "\"></Stmt>";
 }
 
 std::unique_ptr<ExprAST> Parse::FloatStmt::toLLVMAST(ASTContext* c)
