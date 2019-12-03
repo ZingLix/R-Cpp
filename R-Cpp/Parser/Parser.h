@@ -47,6 +47,7 @@ namespace Parse {
 
         //Class InstantiateTemplate(VarType type, const ClassTemplate& template_);
         void print();
+        void dumpToXML(const std::string& filename = "ast.xml");
         void convertToLLVM();
         ASTContext& context();
         //std::unique_ptr<Stmt> callDestructor(const Variable& var);

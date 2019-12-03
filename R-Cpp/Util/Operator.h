@@ -72,3 +72,4 @@ bool isBinaryOperator(OperatorType t);
 bool isUnaryOperator(OperatorType t);
 
 std::ostream& operator<<(std::ostream& os, OperatorType op);
+std::string operatorDescription(OperatorType op);

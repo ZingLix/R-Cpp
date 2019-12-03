@@ -844,6 +844,24 @@ void Parse::Parser::print() {
     }
 }
 
+void Parser::dumpToXML(const std::string& filename) {
+    std::ofstream fs(filename);
+    if(!fs.is_open()) {
+        std::cout << "Open dump file " << filename << " error." << std::endl;
+        return;
+    }
+    fs << "<AST>";
+    for (auto& expr : classDecls_) {
+        fs << expr->dumpToXML();
+    }
+    for (auto& expr : functionDecls_) {
+        fs << expr->dumpToXML();
+        std::cout << expr->dumpToXML();
+    }
+    fs << "</AST>";
+    std::cout << "The AST dump file had been written to " << filename << ".\n";
+}
+
 void Parse::Parser::convertToLLVM() {
     for (auto& clas : classDecls_) {
         clas->toLLVM(&context_);

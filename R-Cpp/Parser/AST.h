@@ -11,6 +11,7 @@ namespace Parse
     {
     public:
         virtual void print(std::string indent, bool last)=0;
+        virtual std::string dumpToXML() const = 0;
         virtual ~Decl() = default;
     };
 
@@ -30,6 +31,7 @@ namespace Parse
         }
 
         virtual void print(std::string indent, bool last)=0;
+        virtual std::string dumpToXML() const = 0;
         virtual std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) = 0;
         virtual ~Stmt() {
             //assert(type_!=nullptr);
@@ -42,6 +44,7 @@ namespace Parse
     public:
         CompoundStmt(std::vector<std::unique_ptr<Stmt>> exprs);
         void print(std::string indent, bool last) override;
+        std::string dumpToXML() const override;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
         std::unique_ptr<BlockExprAST> toBlockExprAST(ASTContext*);
     private:
@@ -55,6 +58,7 @@ namespace Parse
                std::unique_ptr<CompoundStmt> els = nullptr);
 
         void print(std::string indent, bool last) override;
+        std::string dumpToXML() const override;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext* context) override;
     private:
         std::unique_ptr<Stmt> cond_;
@@ -69,6 +73,7 @@ namespace Parse
                 std::unique_ptr<CompoundStmt> body);
 
         void print(std::string indent, bool last) override;
+        std::string dumpToXML() const override;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
         std::unique_ptr<Stmt> start_, cond_, end_;
@@ -80,6 +85,7 @@ namespace Parse
     public:
         ReturnStmt(std::unique_ptr<Stmt> returnVal);
         void print(std::string indent, bool last) override;
+        std::string dumpToXML() const override;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
         std::unique_ptr<Stmt> ret_val_;
@@ -90,6 +96,7 @@ namespace Parse
     public:
         BinaryOperatorStmt(std::unique_ptr<Stmt> lhs, std::unique_ptr<Stmt> rhs, OperatorType op);
         void print(std::string indent, bool last) override;
+        std::string dumpToXML() const override;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
         Type* getLHSType();
         Type* getRHSType();
@@ -107,6 +114,7 @@ namespace Parse
         UnaryOperatorStmt(std::unique_ptr<Stmt> expr, OperatorType op, std::vector<std::unique_ptr<Stmt>> args);
 
         void print(std::string indent, bool last) override;
+        std::string dumpToXML() const override;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
 
     private:
@@ -122,6 +130,7 @@ namespace Parse
 
         void setInitValue(std::unique_ptr<Stmt> initVal);
         void print(std::string indent, bool last) override;
+        std::string dumpToXML() const override;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
         std::unique_ptr<Stmt> vartype_;
@@ -136,6 +145,7 @@ namespace Parse
         void print(std::string indent, bool last) override;
 
         std::string getName();
+        std::string dumpToXML() const override;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
         std::string name_;
@@ -148,6 +158,7 @@ namespace Parse
     public:
         VariableStmt(const std::string& name);
         void print(std::string indent, bool last) override;
+        std::string dumpToXML() const override;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
         const std::string& getName();
     private:
@@ -160,6 +171,7 @@ namespace Parse
         IntegerStmt(std::int64_t val);
         void print(std::string indent, bool last) override;
         std::int64_t getNumber() const;
+        std::string dumpToXML() const override;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
         std::int64_t val_;
@@ -170,6 +182,8 @@ namespace Parse
     public:
         FloatStmt(double val);
         void print(std::string indent, bool last) override;
+        double getNumber()const;
+        std::string dumpToXML() const override;
         std::unique_ptr<ExprAST> toLLVMAST(ASTContext*) override;
     private:
         double val_;
@@ -190,6 +204,7 @@ namespace Parse
         std::unique_ptr<CompoundStmt> body = nullptr, bool isExternal=false);
         void print(std::string indent, bool last) override;
         void setBody(std::unique_ptr<CompoundStmt> body);
+        std::string dumpToXML() const override;
         void toLLVM(ASTContext* context);
         FunctionType* registerPrototype(ASTContext* context);
 
@@ -214,6 +229,7 @@ namespace Parse
         void setDestructor(std::unique_ptr<FunctionDecl> func);
         void print(std::string indent, bool last) override;
         const std::string& name() { return name_; }
+        std::string dumpToXML() const override;
         void toLLVM(ASTContext* context);
         const std::vector<std::pair<std::unique_ptr<Stmt>, std::string>>& getMemberVariables();
         void registerMemberFunction(ASTContext* context);
