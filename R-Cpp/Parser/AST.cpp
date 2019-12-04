@@ -106,10 +106,10 @@ void Parse::IfStmt::print(std::string indent, bool last) {
 }
 
 std::string Parse::IfStmt::dumpToXML() const {
-    std::string str = "<Stmt type=\"TypeStmt\">";
+    std::string str = "<Stmt type=\"IfStmt\">";
     str += toXMLPair("condition", cond_->dumpToXML());
     str += toXMLPair("then", then_->dumpToXML());
-    if (else_) str += toXMLPair("then", else_->dumpToXML());
+    if (else_) str += toXMLPair("else", else_->dumpToXML());
     str += "</Stmt>";
     return str;
 }
@@ -140,7 +140,7 @@ void Parse::ForStmt::print(std::string indent, bool last) {
 }
 
 std::string Parse::ForStmt::dumpToXML() const {
-    std::string str = "<Stmt Type=\"TypeStmt\">";
+    std::string str = "<Stmt type=\"ForStmt\">";
     str += toXMLPair("start", start_->dumpToXML());
     str += toXMLPair("condition", cond_->dumpToXML());
     str += toXMLPair("end", end_->dumpToXML());
@@ -292,7 +292,7 @@ std::string Parse::UnaryOperatorStmt::dumpToXML() const {
     std::string str = "<Stmt type=\"UnaryOperatorStmt\" operator=\"" + std::to_string(static_cast<int>(op_)) + "\">";
     str += toXMLPair("operand",stmt_->dumpToXML());
     for(auto& arg:args_) {
-        str += toXMLPair("arugment", arg->dumpToXML());
+        str += toXMLPair("argument", arg->dumpToXML());
     }
     str += "</Stmt>";
     return str;
@@ -628,7 +628,7 @@ std::string Parse::ClassDecl::dumpToXML() const {
     str += "</memberVariables>";
     str += "<constructors>";
     for (auto& var : constructors_) {
-        str += toXMLPair("constructor", var->dumpToXML());
+        str += var->dumpToXML();
     }
     str += "</constructors>";
     if(destructor_)

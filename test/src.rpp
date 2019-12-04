@@ -1,87 +1,98 @@
 // Function.recursive
 fn fibonacci(i32 i) -> i32
 {
-    if(i==1) return 1;
-    else if(i==2) return 1;
-    else return fibonacci(i-1)+fibonacci(i-2);
+    if(i == 1) return 1;
+    else if(i == 2) return 1;
+    else return fibonacci(i - 1) + fibonacci(i - 2);
 }
 
 
 // Basic.for
-fn sum(i32 a) -> i32 
+fn sum(i32 a) -> i32
 {
-    i32 count=0;
-    for(i32 i=0;i<a;i=i+1)
-        count=count+i;
-    return count;
+	i32 count = 0;
+	for(i32 i = 0; i < a; i = i + 1)
+	{
+		count = count + i;
+	}
+	return count;
 }
 
+
 // Basic.precedence
-fn precedence()->i32{
-    return 3*4+8*5+10;
+fn precedence() -> i32
+{
+	return 3 * 4 + 8 * 5 + 10;
 }
+
 
 // Class
 class c
 {
-    i32 a;
-    i32 b;
-    c(i32 x, i32 y){
-        a=x;
-        b=y;
-    }
+	c(i32 x, i32 y)
+	{
+		a = x;
+		b = y;
+	}
 
-    fn add() -> i32
-    {
-        return a+b;
-    }
+	fn add() -> i32
+	{
+		return a + b;
+	}
+
+	i32 a;
+	i32 b;
 }
+
 
 class d
 {
-    c x;
-    i32 y;
-    fn func() -> i32
-    {
-        i32 tmp =x.add();
-        return tmp*y;
-    }
+	fn func() -> i32
+	{
+		i32 tmp = x.add();
+		return tmp * y;
+	}
+
+	c x;
+	i32 y;
 }
 
 // Class.memberFunction
-fn classMemberFunction(i32 a)->i32
+fn classMemberFunction(i32 a) -> i32
 {
-    d v;
-    v.x.a=a;
-    v.x.b=10;
-    v.y=2*v.x.add();
-    return v.func();
+	d v;
+	v.x.a = a;
+	v.x.b = 10;
+	v.y = 2 * v.x.add();
+	return v.func();
 }
 
 // Class.constructor
-fn classConstructor1()->i32
+fn classConstructor1() -> i32
 {
-    return c(3,4).a;
+	return c(3, 4).a;
 }
 
-fn classConstructor2(i32 a,i32 b)->i32
+fn classConstructor2(i32 a, i32 b) -> i32
 {
-    c tmp = c(a,b);
-    return tmp.add();
+	c tmp = c(a, b);
+	return tmp.add();
 }
 
 //Array.basic
-fn array(i32 a)->i32
+fn array(i32 a) -> i32
 {
-    __arr<i32,10> array;
-    for(i32 i=1;i<11;i=i+1){
-        array[i-1]=a*i;
-    }
-    i32 sum=0;
-    for(i32 j=0;j<10;j=j+1){
-        sum += array[j];
-    }
-    return sum;
+	__arr<i32, 10> array;
+	for(i32 i = 1; i < 11; i = i + 1)
+	{
+		array[i - 1] = a * i;
+	}
+	i32 sum = 0;
+	for(i32 j = 0; j < 10; j = j + 1)
+	{
+		sum += array[j];
+	}
+	return sum;
 }
 
 //Pointer.basic
@@ -89,44 +100,11 @@ external:
 fn malloc(i32 a) -> __ptr<void>;
 
 internal:
-fn ptr(i32 a,i32 b)->i32{
-    __ptr<c> p = c::new();
-    p->a=a;
-    p->b=b;
-    return p->add();
-}
-
-//Template.basic
-<Any T>
-class Template
+fn ptr(i32 a, i32 b) -> i32
 {
-    T i1;
-    fn val() -> i32
-    {
-        return i1.get();
-    }
+	__ptr<c> p = c::new();
+	p->a = a;
+	p->b = b;
+	return p->add();
 }
 
-class A
-{
-    fn get() ->i32{
-        return 1;
-    }
-}
-
-class B
-{
-    fn get()->i32{
-        return 2;
-    }
-}
-
-fn TemplateA()->i32{
-    Template<A> T;
-    return T.val();
-}
-
-fn TemplateB()->i32{
-    Template<B> T;
-    return T.val();
-}

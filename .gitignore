@@ -279,3 +279,4 @@ test/R-Cpp/
 test/compiler
 test/out
 test/output.o
+test/ast.xml
