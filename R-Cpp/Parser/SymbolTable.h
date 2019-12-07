@@ -71,6 +71,10 @@ namespace Parse {
         const std::vector<std::unique_ptr<FunctionType>>* getFunction(const std::string& name, const std::vector<std::string>& ns_hierarchy={});
         const std::vector<std::string>& getNamespaceHierarchy();
         NamespaceHelper* getNamespace(const std::string& name) const;
+        NamespaceHelper* currentNamespace() const
+        {
+            return cur_namespace_;
+        }
         //void addClassTemplate(ClassTemplate template_);
         void addClassTemplate(std::vector<std::pair<std::string, std::string>> arglist, std::unique_ptr<ClassDecl> decl);
         //ClassTemplate getClassTemplate(std::string name);

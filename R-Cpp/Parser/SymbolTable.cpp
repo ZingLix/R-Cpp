@@ -47,6 +47,7 @@ Type* ClassTemplate::instantiate(const std::vector<Type*>& args,ASTContext* cont
             context->symbolTable().setAlias(typeList[i].second, args[i]);
         }
         auto type = std::make_unique<CompoundType>(name, classDecl_->memberTypeList(context),args);
+        type->setNamespaceHierarchy(context->symbolTable().currentNamespace());
         auto t = type.get();
         classDecl_->setType(t);
         instantiatedType.emplace_back(args, std::move(type));
@@ -141,7 +142,7 @@ Type* SymbolTable::getType(const std::string& t, const std::vector<Type*>& args)
                     }
                 }
                 //instantiate template
-                return template_->second.instantiate(args);
+                return template_->second.instantiate(args,&context_);
             }
         }
     }
@@ -192,12 +193,8 @@ Type* SymbolTable::getType(const std::string& t, const std::vector<Type*>& args)
 
 FunctionType* SymbolTable::addFunction(const std::string& name, std::vector<std::pair<Type*, std::string>> argList, Type* returnType,Type* classType, bool isExternal)
 {
-<<<<<<< HEAD
-    auto fn = std::make_unique<FunctionType>(name, std::move(argList), returnType, classType, isExternal);
-    fn->setNamespaceHierarchy(cur_namespace_);
-=======
     auto fn = std::make_unique<FunctionType>(name, std::move(argList), returnType, context_.currentClass(), isExternal);
->>>>>>> dev1
+    fn->setNamespaceHierarchy(cur_namespace_);
     auto ret = fn.get();
     cur_namespace_->namedFunction[name].push_back(std::move(fn));
     return ret;
