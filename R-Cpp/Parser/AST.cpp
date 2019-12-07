@@ -1,6 +1,10 @@
 #include "AST.h"
 #include <iostream>
 
+std::string toXMLPair(const std::string& tag,const std::string& content) {
+    return "<" + tag + ">" + content + "</" + tag + ">";
+}
+
 Parse::FunctionType* findSuitableFunction(const std::vector<std::unique_ptr<Parse::Stmt>>& argList, const std::vector<Parse::FunctionType*>* fnList) {
     Parse::FunctionType* target = nullptr;
     for (auto& f : *fnList) {
@@ -56,6 +60,14 @@ void Parse::CompoundStmt::print(std::string indent, bool last) {
     }
 }
 
+std::string Parse::CompoundStmt::dumpToXML() const {
+    std::string ret;
+    for(auto& stmt:stmts_) {
+        ret += stmt->dumpToXML();
+    }
+    return ret;
+}
+
 std::unique_ptr<ExprAST> Parse::CompoundStmt::toLLVMAST(ASTContext* context)
 {
     return toBlockExprAST(context);
@@ -93,6 +105,15 @@ void Parse::IfStmt::print(std::string indent, bool last) {
 
 }
 
+std::string Parse::IfStmt::dumpToXML() const {
+    std::string str = "<Stmt type=\"IfStmt\">";
+    str += toXMLPair("condition", cond_->dumpToXML());
+    str += toXMLPair("then", then_->dumpToXML());
+    if (else_) str += toXMLPair("else", else_->dumpToXML());
+    str += "</Stmt>";
+    return str;
+}
+
 std::unique_ptr<ExprAST> Parse::IfStmt::toLLVMAST(ASTContext* context)
 {
     return std::make_unique<IfExprAST>(cond_->toLLVMAST(context), then_->toBlockExprAST(context),
@@ -118,6 +139,16 @@ void Parse::ForStmt::print(std::string indent, bool last) {
     end_->print(indent + "  ", true);
 }
 
+std::string Parse::ForStmt::dumpToXML() const {
+    std::string str = "<Stmt type=\"ForStmt\">";
+    str += toXMLPair("start", start_->dumpToXML());
+    str += toXMLPair("condition", cond_->dumpToXML());
+    str += toXMLPair("end", end_->dumpToXML());
+    str += toXMLPair("body", body_->dumpToXML());
+    str += "</Stmt>";
+    return str;
+}
+
 std::unique_ptr<ExprAST> Parse::ForStmt::toLLVMAST(ASTContext* context)
 {
     auto start = start_->toLLVMAST(context);
@@ -137,6 +168,13 @@ void Parse::ReturnStmt::print(std::string indent, bool last) {
     ret_val_->print(indent, true);
 }
 
+std::string Parse::ReturnStmt::dumpToXML() const {
+    std::string str = "<Stmt type=\"ReturnStmt\">";
+    str+= ret_val_->dumpToXML();
+    str += "</Stmt>";
+    return str;
+}
+
 std::unique_ptr<ExprAST> Parse::ReturnStmt::toLLVMAST(ASTContext* context)
 {
     return std::make_unique<ReturnAST>(ret_val_->toLLVMAST(context), std::vector<std::unique_ptr<ExprAST>>{});
@@ -153,6 +191,14 @@ void Parse::BinaryOperatorStmt::print(std::string indent, bool last) {
     indent += last ? "  " : "| ";
     lhs_->print(indent, false);
     rhs_->print(indent, true);
+}
+
+std::string Parse::BinaryOperatorStmt::dumpToXML() const {
+    std::string str = "<Stmt type=\"BinaryOperatorStmt\" operator=\"" + std::to_string (static_cast<int>( op_))+"\">";
+    str += toXMLPair("LHS", lhs_->dumpToXML());
+    str += toXMLPair("RHS", rhs_->dumpToXML());
+    str += "</Stmt>";
+    return str;
 }
 
 std::unique_ptr<ExprAST> Parse::BinaryOperatorStmt::toLLVMAST(ASTContext* context)
@@ -242,6 +288,16 @@ void Parse::UnaryOperatorStmt::print(std::string indent, bool last) {
     }
 }
 
+std::string Parse::UnaryOperatorStmt::dumpToXML() const {
+    std::string str = "<Stmt type=\"UnaryOperatorStmt\" operator=\"" + std::to_string(static_cast<int>(op_)) + "\">";
+    str += toXMLPair("operand",stmt_->dumpToXML());
+    for(auto& arg:args_) {
+        str += toXMLPair("argument", arg->dumpToXML());
+    }
+    str += "</Stmt>";
+    return str;
+}
+
 std::unique_ptr<ExprAST> Parse::UnaryOperatorStmt::toLLVMAST(ASTContext* context) {
     auto expr = stmt_->toLLVMAST(context);
     std::vector<std::unique_ptr<ExprAST>> argsExpr;
@@ -310,6 +366,15 @@ void Parse::VariableDefStmt::print(std::string indent, bool last) {
         init_val_->print(indent, true);
 }
 
+std::string Parse::VariableDefStmt::dumpToXML() const {
+    std::string str = "<Stmt type=\"VariableDefStmt\" name=\"" + name_ + "\">";
+    str += toXMLPair("type", vartype_->dumpToXML());
+    if(init_val_)
+        str += toXMLPair("initVal", init_val_->dumpToXML());
+    str += "</Stmt>";
+    return str;
+}
+
 std::unique_ptr<ExprAST> Parse::VariableDefStmt::toLLVMAST(ASTContext* context) {
     vartype_->toLLVMAST(context);
     auto t = dynamic_cast<TypeStmt*>(vartype_.get());
@@ -361,6 +426,15 @@ std::string Parse::TypeStmt::getName()
     return name;
 }
 
+std::string Parse::TypeStmt::dumpToXML() const {
+    std::string str = "<Stmt type=\"TypeStmt\" name=\"" + name_ + "\">";
+    for(auto& arg:arglist_) {
+        str += toXMLPair("argument", arg->dumpToXML());
+    }
+    str += "</Stmt>";
+    return str;
+}
+
 std::unique_ptr<ExprAST> Parse::TypeStmt::toLLVMAST(ASTContext* context)
 {   // do not return ExprAST, only to check whether the type is valid.
     // Return nullptr when everything is ok, otherwise an exception will
@@ -395,6 +469,10 @@ void Parse::VariableStmt::print(std::string indent, bool last) {
     std::cout << indent << "+-VariableStmt " << name_ << std::endl;
 }
 
+std::string Parse::VariableStmt::dumpToXML() const {
+    return "<Stmt type=\"VariableStmt\" name=\"" + name_ + "\"></Stmt>";
+}
+
 std::unique_ptr<ExprAST> Parse::VariableStmt::toLLVMAST(ASTContext* context) {
     auto v = context->symbolTable().getVariable(name_);
     if (v) {  // is a variable
@@ -425,6 +503,10 @@ std::int64_t Parse::IntegerStmt::getNumber() const
     return val_;
 }
 
+std::string Parse::IntegerStmt::dumpToXML() const {
+    return "<Stmt type=\"IntegerStmt\" value=\"" + std::to_string(val_) + "\"></Stmt>";
+}
+
 std::unique_ptr<ExprAST> Parse::IntegerStmt::toLLVMAST(ASTContext*c)
 {
     type_ = c->symbolTable().getType("i32");
@@ -436,6 +518,14 @@ Parse::FloatStmt::FloatStmt(double val): val_(val) {
 
 void Parse::FloatStmt::print(std::string indent, bool last) {
     std::cout << indent << "+-FloatStmt " << val_ << std::endl;
+}
+
+double Parse::FloatStmt::getNumber() const {
+    return val_;
+}
+
+std::string Parse::FloatStmt::dumpToXML() const {
+    return "<Stmt type=\"FloatStmt\" value=\"" + std::to_string(val_) + "\"></Stmt>";
 }
 
 std::unique_ptr<ExprAST> Parse::FloatStmt::toLLVMAST(ASTContext* c)
@@ -475,6 +565,22 @@ void Parse::FunctionDecl::setBody(std::unique_ptr<CompoundStmt> body)
     body_ = std::move(body);
 }
 
+std::string Parse::FunctionDecl::dumpToXML() const {
+    std::string str = "<FunctionDecl name=\"" + funcName_ + "\" external=\"" + (isExternal_ ? "true" : "false") + "\">";
+    str += "<arguments>";
+    for(auto& arg:args_) {
+        str += "<argument name=\""+arg.second+"\">";
+        str+=arg.first->dumpToXML();
+        str += "</argument>";
+    }
+    str += "</arguments>";
+    str += toXMLPair("returnType", retType_->dumpToXML());
+    if(body_)
+        str += toXMLPair("body", body_->dumpToXML());
+    str += "</FunctionDecl>";
+    return str;
+}
+
 Parse::ClassDecl::ClassDecl(const std::string& name): name_(name),classType_(nullptr) {
 }
 
@@ -509,6 +615,31 @@ void Parse::ClassDecl::print(std::string indent, bool last) {
     for (size_t i = 0; i < memberFunctions_.size(); ++i) {
         memberFunctions_[i]->print(indent, i == memberFunctions_.size() - 1);
     }
+}
+
+std::string Parse::ClassDecl::dumpToXML() const {
+    std::string str ="<ClassDecl name=\""+name_+"\">";
+    str += "<memberVariables>";
+    for(auto& var:memberVariables_) {
+        str += "<variable name=\"" + var.second + "\">";
+        str += var.first->dumpToXML();
+        str += "</variable>";
+    }
+    str += "</memberVariables>";
+    str += "<constructors>";
+    for (auto& var : constructors_) {
+        str += var->dumpToXML();
+    }
+    str += "</constructors>";
+    if(destructor_)
+        str += toXMLPair("desturctor", destructor_->dumpToXML());
+    str += "<memberFunctions>";
+    for (auto& var : memberFunctions_) {
+        str += var->dumpToXML();
+    }
+    str += "</memberFunctions>";
+    str += "</ClassDecl>";
+    return str;
 }
 
 void Parse::ClassDecl::toLLVM(ASTContext* context)
@@ -584,3 +715,31 @@ void Parse::ClassDecl::registerMemberFunction(ASTContext* context) {
         destructor_->toLLVM(context);
 }
 
+std::vector<std::pair<Parse::Type*, std::string>> Parse::ClassDecl::memberTypeList(ASTContext* context)
+{
+    std::vector<std::pair<Type*, std::string>> memberList;
+    for (auto& p : memberVariables_) {
+        p.first->toLLVMAST(context);
+        auto type = p.first->getType();
+        memberList.emplace_back(type, p.second);
+    }
+    return memberList;
+}
+
+void Parse::ClassDecl::setType(CompoundType* type)
+{
+    classType_ = type;
+}
+
+void Parse::TemplateClassDecl::print(std::string indent, bool last)
+{
+    std::cout << indent << "+-TemplateClassDecl " << class_->name() << " <";
+    for(auto& p:template_arg_list_)
+    {
+        std::cout << p.first->getName() << " " << p.second;
+        if(p!=template_arg_list_.back()) std::cout << ", ";
+    }
+    std::cout << ">";
+    indent += last ? "  " : "| ";
+    class_->print(indent + "  ", true);
+}

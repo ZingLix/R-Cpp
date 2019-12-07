@@ -259,141 +259,145 @@ bool isUnaryOperator(OperatorType t)
 }
 
 std::ostream& operator<<(std::ostream& os, OperatorType op) {
+    os << operatorDescription(op);
+    return os;
+}
+
+std::string operatorDescription(OperatorType op) {
     switch (op) {
     case OperatorType::ScopeResolution:
-        os << "ScopeResolution ::";
-        break;
+        return "ScopeResolution ::";
+
     case OperatorType::PostIncrement:
-        os << "PostIncrement ++";
-        break;
+        return "PostIncrement ++";
+
     case OperatorType::PostDecrement:
-        os << "PostDecrement --";
-        break;
+        return "PostDecrement --";
+
     case OperatorType::FunctionCall:
-        os << "FunctionCall ()";
-        break;
+        return "FunctionCall ()";
+
     case OperatorType::Subscript:
-        os << "Subscript []";
-        break;
+        return "Subscript []";
+
     case OperatorType::MemberAccessA:
-        os << "MemberAccess ->";
-        break;
+        return "MemberAccess ->";
+
     case OperatorType::MemberAccessP:
-        os << "MemberAccess .";
-        break;
+        return "MemberAccess .";
+
     case OperatorType::PreIncrement:
-        os << "PreIncrement ++";
-        break;
+        return "PreIncrement ++";
+
     case OperatorType::PreDecrement:
-        os << "PreDecrement --";
-        break;
+        return "PreDecrement --";
+
     case OperatorType::Promotion:
-        os << "Promotion +";
-        break;
+        return "Promotion +";
+
     case OperatorType::Negation:
-        os << "Negation -";
-        break;
+        return "Negation -";
+
     case OperatorType::LogicalNOT:
-        os << "LogicalNot !";
-        break;
+        return "LogicalNot !";
+
     case OperatorType::BitwiseNOT:
-        os << "BitwiseNOT ~";
-        break;
+        return "BitwiseNOT ~";
+
     case OperatorType::Dereference:
-        os << "Dereference *";
-        break;
+        return "Dereference *";
+
     case OperatorType::Multiplication:
-        os << "Multiplication *";
-        break;
+        return "Multiplication *";
+
     case OperatorType::Division:
-        os << "Division /";
-        break;
+        return "Division /";
+
     case OperatorType::Remainder:
-        os << "Remainder %";
-        break;
+        return "Remainder %";
+
     case OperatorType::Addition:
-        os << "Addition +";
-        break;
+        return "Addition +";
+
     case OperatorType::Subtraction:
-        os << "Subtraction -";
-        break;
+        return "Subtraction -";
+
     case OperatorType::LeftShift:
-        os << "LeftShift <<";
-        break;
+        return "LeftShift <<";
+
     case OperatorType::RightShift:
-        os << "RightShift >>";
-        break;
+        return "RightShift >>";
+
     case OperatorType::Less:
-        os << "Less <";
-        break;
+        return "Less <";
+
     case OperatorType::LessEqual:
-        os << "LessEqual <=";;
-        break;
+        return "LessEqual <=";;
+
     case OperatorType::Greater:
-        os << "Greater >";
-        break;
+        return "Greater >";
+
     case OperatorType::GreaterEqual:
-        os << "GreaterEqual >=";
-        break;
+        return "GreaterEqual >=";
+
     case OperatorType::Equal:
-        os << "Equal ==";
-        break;
+        return "Equal ==";
+
     case OperatorType::NotEqual:
-        os << "NotEqual !=";
-        break;
+        return "NotEqual !=";
+
     case OperatorType::BitwiseAND:
-        os << "BitwiseAND &";
-        break;
+        return "BitwiseAND &";
+
     case OperatorType::BitwiseXOR:
-        os << "BitwiseXOR ^";
-        break;
+        return "BitwiseXOR ^";
+
     case OperatorType::BitwiseOR:
-        os << "BitwiseOR |";
-        break;
+        return "BitwiseOR |";
+
     case OperatorType::LogicalAND:
-        os << "LogicalAND &&";
-        break;
+        return "LogicalAND &&";
+
     case OperatorType::LogicalOR:
-        os << "LogicalOR ||";
-        break;
+        return "LogicalOR ||";
+
     case OperatorType::Assignment:
-        os << "Assignment =";
-        break;
+        return "Assignment =";
+
     case OperatorType::SumComAssign:
-        os << "SumCompoundAssignment +=";
-        break;
+        return "SumCompoundAssignment +=";
+
     case OperatorType::MinComAssign:
-        os << "MinusCompoundAssignment -=";
-        break;
+        return "MinusCompoundAssignment -=";
+
     case OperatorType::MulComAssign:
-        os << "MultiplyCompoundAssignment *=";
-        break;
+        return "MultiplyCompoundAssignment *=";
+
     case OperatorType::DivComAssign:
-        os << "DivisionCompoundAssignment /=";
-        break;
+        return "DivisionCompoundAssignment /=";
+
     case OperatorType::RemComAssign:
-        os << "RemainderCompoundAssignment %=";
-        break;
+        return "RemainderCompoundAssignment %=";
+
     case OperatorType::LshComAssign:
-        os << "LeftShiftCompoundAssignment <<=";
-        break;
+        return "LeftShiftCompoundAssignment <<=";
+
     case OperatorType::RshComAssign:
-        os << "RightShiftCompoundAssignment >>=";
-        break;
+        return "RightShiftCompoundAssignment >>=";
+
     case OperatorType::ANDComAssign:
-        os << "ANDCompoundAssignment &=";
-        break;
+        return "ANDCompoundAssignment &=";
+
     case OperatorType::XORComAssign:
-        os << "XORCompoundAssignment ^=";
-        break;
+        return "XORCompoundAssignment ^=";
+
     case OperatorType::ORComAssign:
-        os << "ORCompoundAssignment |=";
-        break;
+        return "ORCompoundAssignment |=";
+
     case OperatorType::Comma:
-        os << "Comma ,";
-        break;
+        return "Comma ,";
+
     default:
-        os << "<Unknown Operator>";
+        return "<Unknown Operator>";
     }
-    return os;
 }

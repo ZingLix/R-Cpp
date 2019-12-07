@@ -43,10 +43,11 @@ namespace Parse {
         void ParseExternal();
         void ParseInternal();
         //void ParseUsing();
-        //void ParseTemplateClass();
+        void ParseTemplateClass();
 
         //Class InstantiateTemplate(VarType type, const ClassTemplate& template_);
         void print();
+        void dumpToXML(const std::string& filename = "ast.xml");
         void convertToLLVM();
         ASTContext& context();
         //std::unique_ptr<Stmt> callDestructor(const Variable& var);
@@ -64,11 +65,9 @@ namespace Parse {
         bool isPostOperator();
 
         Lexer lexer_;
-        //Token cur_token_;
         std::vector<std::unique_ptr<FunctionDecl>> functionDecls_;
         std::vector<std::unique_ptr<ClassDecl>> classDecls_;
-        //std::vector<std::string> cur_namespace_;
-        //VarType cur_class_;
+        std::vector<std::unique_ptr<TemplateClassDecl>> templateClassDecls_;
         bool isExternal;
         ASTContext context_;
     };

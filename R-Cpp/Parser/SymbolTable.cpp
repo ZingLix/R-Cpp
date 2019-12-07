@@ -3,7 +3,66 @@
 
 using namespace Parse;
 
-SymbolTable::SymbolTable():helper_("",nullptr),cur_namespace_(&helper_),specfied_namespace_(nullptr)
+ClassTemplate::
+ClassTemplate(std::vector<std::pair<std::string, std::string>> typelist, std::unique_ptr<ClassDecl> decl):
+    name(decl->name()), typeList(std::move(typelist)), classDecl_(std::move(decl))
+{
+    assert(classDecl_ != nullptr);
+}
+
+ClassTemplate::
+ClassTemplate(const std::string& name, std::vector<std::pair<std::string, std::string>> typelist): name(name),
+                                                                                                   typeList(std::move(
+                                                                                                       typelist)),
+                                                                                                   classDecl_(nullptr)
+{
+    // only for builtin type
+    assert(name == "__ptr" || name == "__arr");
+}
+
+Type* ClassTemplate::instantiate(const std::vector<Type*>& args,ASTContext* context)
+{
+    if (args.size() != typeList.size())
+    {
+        throw std::logic_error("Template arguments count mismatch.");
+    }
+    for(auto& p:instantiatedType)
+    {
+        if(p.first==args)
+        {
+            return p.second.get();
+        }
+    }
+    if(!classDecl_)
+    {
+        auto type = std::make_unique<BuiltinType>(name, args);
+        auto ret = type.get();
+        instantiatedType.emplace_back(args, std::move(type));
+        return ret;
+    }
+    else
+    {
+        for(size_t i=0;i<typeList.size();++i)
+        {
+            context->symbolTable().setAlias(typeList[i].second, args[i]);
+        }
+        auto type = std::make_unique<CompoundType>(name, classDecl_->memberTypeList(context),args);
+        type->setNamespaceHierarchy(context->symbolTable().currentNamespace());
+        auto t = type.get();
+        classDecl_->setType(t);
+        instantiatedType.emplace_back(args, std::move(type));
+        context->addLLVMType(t);
+        classDecl_->registerMemberFunction(context);
+        for(auto&p:typeList)
+        {
+            context->symbolTable().unsetAlias(p.second);
+        }
+        return t;
+    }
+
+}
+
+SymbolTable::SymbolTable(ASTContext& context):context_(context), helper_("",nullptr),cur_namespace_(&helper_),specfied_namespace_(nullptr)
 {
     createScope();
     for(auto& s:BuiltinType::builtinTypeSet())
@@ -83,7 +142,7 @@ Type* SymbolTable::getType(const std::string& t, const std::vector<Type*>& args)
                     }
                 }
                 //instantiate template
-                return template_->second.instantiate(args);
+                return template_->second.instantiate(args,&context_);
             }
         }
     }
@@ -91,6 +150,9 @@ Type* SymbolTable::getType(const std::string& t, const std::vector<Type*>& args)
     if(args.size()==0)
     {
         while (ns != nullptr) {
+            auto alias = ns->alias.find(t);
+            if (alias != ns->alias.end()) return alias->second;
+
             auto it = ns->namedType.find(t);
             if (it != ns->namedType.end()) return it->second.get();
             ns = ns->lastNS;
@@ -120,7 +182,7 @@ Type* SymbolTable::getType(const std::string& t, const std::vector<Type*>& args)
                         }
                     }
                     //instantiate template
-                    return it->second.instantiate(args);
+                    return it->second.instantiate(args,&context_);
                 }
             }
             ns = ns->lastNS;
@@ -131,7 +193,7 @@ Type* SymbolTable::getType(const std::string& t, const std::vector<Type*>& args)
 
 FunctionType* SymbolTable::addFunction(const std::string& name, std::vector<std::pair<Type*, std::string>> argList, Type* returnType,Type* classType, bool isExternal)
 {
-    auto fn = std::make_unique<FunctionType>(name, std::move(argList), returnType, classType, isExternal);
+    auto fn = std::make_unique<FunctionType>(name, std::move(argList), returnType, context_.currentClass(), isExternal);
     fn->setNamespaceHierarchy(cur_namespace_);
     auto ret = fn.get();
     cur_namespace_->namedFunction[name].push_back(std::move(fn));
@@ -183,11 +245,14 @@ const std::vector<std::unique_ptr<FunctionType>>* SymbolTable::getRawFunction_(c
     return &(ns->namedFunction[name]);
 }
 
-//void SymbolTable::addClassTemplate(ClassTemplate template_)
-//{
-//    cur_namespace_->classTemplate[template_.type.typeName] = std::move(template_);
-//}
-//
+void SymbolTable::addClassTemplate(
+    std::vector<std::pair<std::string, std::string>> arglist, std::unique_ptr<ClassDecl> decl)
+{
+    auto name = decl->name();
+    cur_namespace_->classTemplate.emplace(std::make_pair(name, ClassTemplate(std::move(arglist), std::move(decl))));
+//    cur_namespace_->classTemplate[decl->name()] = ClassTemplate(std::move(arglist),std::move(decl));
+}
+
 //ClassTemplate SymbolTable::getClassTemplate(std::string name)
 //{
 //    auto cur = cur_namespace_;
@@ -208,6 +273,11 @@ const std::vector<std::unique_ptr<FunctionType>>* SymbolTable::getRawFunction_(c
 void SymbolTable::setAlias(const std::string& newName, Type* oldType)
 {
     cur_namespace_->alias[newName] = oldType;
+}
+
+void SymbolTable::unsetAlias(const std::string& name)
+{
+    cur_namespace_->alias.erase(cur_namespace_->alias.find(name));
 }
 
 //

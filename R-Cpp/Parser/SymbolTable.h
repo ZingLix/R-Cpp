@@ -7,6 +7,8 @@
 class BlockExprAST;
 class ExprAST;
 namespace Parse {
+    class ASTContext;
+    class ClassDecl;
 
     class Variable
     {
@@ -20,23 +22,16 @@ namespace Parse {
 
     struct ClassTemplate
     {
-        ClassTemplate(const std::string& name,const std::vector<std::pair<std::string, std::string>>& typelist)
-            :name(name),typeList(typelist)
-        {
-            
-        }
+      //  ClassTemplate(){}
+        ClassTemplate(std::vector<std::pair<std::string, std::string>> typelist, std::unique_ptr<ClassDecl> decl);
+        ClassTemplate(const std::string& name, std::vector<std::pair<std::string, std::string>> typelist);
 
         std::string name;
         std::vector<std::pair<std::string, std::string>> typeList;
+        std::unique_ptr<ClassDecl> classDecl_;
         std::vector<std::pair<std::vector<Type*>, std::unique_ptr<Type>>> instantiatedType;
 
-        Type* instantiate(const std::vector<Type*>& args)
-        {
-            auto type = std::make_unique<BuiltinType>(name, args);
-            auto ret = type.get();
-            instantiatedType.emplace_back(args, std::move(type));
-            return ret;
-        }
+        Type* instantiate(const std::vector<Type*>& args, ASTContext* context);
     };
 
     struct NamespaceHelper
@@ -59,12 +54,10 @@ namespace Parse {
         NamespaceHelper* lastNS;
     };
 
-    class Parser;
-
     class SymbolTable
     {
     public:
-        SymbolTable();
+        SymbolTable(ASTContext& context);
         void createScope();
         void destroyScope();
         void createNamespace(const std::string& name);
@@ -78,10 +71,16 @@ namespace Parse {
         const std::vector<std::unique_ptr<FunctionType>>* getFunction(const std::string& name, const std::vector<std::string>& ns_hierarchy={});
         const std::vector<std::string>& getNamespaceHierarchy();
         NamespaceHelper* getNamespace(const std::string& name) const;
+        NamespaceHelper* currentNamespace() const
+        {
+            return cur_namespace_;
+        }
         //void addClassTemplate(ClassTemplate template_);
+        void addClassTemplate(std::vector<std::pair<std::string, std::string>> arglist, std::unique_ptr<ClassDecl> decl);
         //ClassTemplate getClassTemplate(std::string name);
         //std::string getMangledClassName(VarType type);
         void setAlias(const std::string& newName, Type* oldType);
+        void unsetAlias(const std::string& name);
        // std::vector<std::unique_ptr<ExprAST>> callDestructor();
        // void callNamelessVarDestructor(std::vector<std::unique_ptr<ExprAST>>& exprs);
         void addNamelessVariable(Type* type,const std::string name)
@@ -118,7 +117,7 @@ namespace Parse {
         //ClassTemplate getClassTemplate_(std::string name, NamespaceHelper* ns);
         //void callDestructorForCurScope(BlockExprAST* block);
 
-        //Parser& parser_;
+        ASTContext& context_;
         std::vector<std::map<std::string, std::unique_ptr<Variable>>> named_values_;
         std::vector<std::vector<std::string>> named_values_seq_;
         std::vector<std::unique_ptr<Variable>> nameless_values_;
