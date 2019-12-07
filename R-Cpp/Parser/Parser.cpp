@@ -736,9 +736,9 @@ void Parse::Parser::MainLoop() {
             //case TokenType::Using:
             //    ParseUsing();
             //    break;
-            //case TokenType::lAngle:
-            //    ParseTemplateClass();
-            //    break;
+        case TokenType::lAngle:
+            ParseTemplateClass();
+            break;
         default:
             getNextToken();
             //    HandleTopLevelExpression();
@@ -923,6 +923,7 @@ void Parse::Parser::ParseExternal() {
         error("Expected : after external.");
     getNextToken();
 }
+
 void Parse::Parser::ParseInternal() {
     isExternal = false;
     getNextToken();
@@ -931,62 +932,35 @@ void Parse::Parser::ParseInternal() {
     getNextToken();
 }
 
-
-
-//void Parse::Parser::ParseTemplateClass()
-//{
-//    getNextToken();  // eat <
-//    std::vector<std::pair<std::unique_ptr<TypeStmt>, std::string>> typelist;
-//    while (lexer_.curToken().type!=TokenType::rAngle)
-//    {
-//        auto type = ParseType();
-//        auto name = lexer_.curToken().content;
-//        getNextToken();
-//        typelist.emplace_back(type, name);
-//        if (lexer_.curToken().type == TokenType::Comma) getNextToken();
-//    }
-//    getNextToken();  // eat >
-//    if(lexer_.curToken().type==TokenType::Class)
-//    {
-//        std::vector<Token> tokenStream;
-//        tokenStream.push_back(lexer_.curToken());
-//        getNextToken();
-//        if(lexer_.curToken().type!=TokenType::Identifier)
-//        {
-//            error("Invalid identifier.");
-//            return;
-//        }
-//        auto name = lexer_.curToken().content;
-//        tokenStream.push_back(lexer_.curToken());
-//        getNextToken();
-//        if(lexer_.curToken().type!=TokenType::lBrace)
-//        {
-//            error("Expected { .");
-//            return;
-//        }
-//        tokenStream.push_back(lexer_.curToken());
-//       // getNextToken();
-//        int i = 1;
-//        while (true)
-//        {
-//            getNextToken();
-//            tokenStream.push_back(lexer_.curToken());
-//            if (lexer_.curToken().type == TokenType::lBrace) ++i;
-//            if (lexer_.curToken().type == TokenType::rBrace) --i;
-//            if (i == 0) break;
-//        }
-//        //ClassTemplate template_;
-//        //template_.type = VarType(name);
-//        //template_.token = std::move(tokenStream);
-//        //template_.typeList = std::move(typelist);
-//        //symbol_->addClassTemplate(std::move(template_));
-//
-//    }else
-//    {
-//        error("Only class supports template.");
-//        return;
-//    }
-//}
+void Parse::Parser::ParseTemplateClass()
+{
+    getNextToken();  // eat <
+    std::vector<std::pair<std::string, std::string>> typelist;
+    while (lexer_.curToken().type!=TokenType::rAngle)
+    {
+        auto type = lexer_.curToken().content;
+        getNextToken();
+        auto name = lexer_.curToken().content;
+        getNextToken();
+        typelist.emplace_back(type, name);
+        if (lexer_.curToken().type == TokenType::Comma) getNextToken();
+    }
+    getNextToken();  // eat >
+    if(lexer_.curToken().type==TokenType::Class)
+    {
+        auto c = ParseClass();
+        if(!c)
+        {
+            error("Parse class error.");
+        }
+        context().addClassTemplate(std::move(typelist), std::move(c));
+        //templateClassDecls_.emplace_back(std::move(typelist), c);
+    }else
+    {
+        error("Only class supports template.");
+        return;
+    }
+}
 
 //void Parse::Parser::ParseUsing()
 //{

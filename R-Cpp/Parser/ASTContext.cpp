@@ -1,6 +1,8 @@
 #include "ASTContext.h"
+#include "SymbolTable.h"
+#include "AST.h"
 
-Parse::ASTContext::ASTContext(): symbol_table_(std::make_unique<SymbolTable>()), nameless_var_count_(1),
+Parse::ASTContext::ASTContext(): symbol_table_(std::make_unique<SymbolTable>(*this)), nameless_var_count_(1),
                                  cur_parsing_class_(nullptr) {
 
 }
@@ -18,15 +20,15 @@ void Parse::ASTContext::addClassAST(std::unique_ptr<ClassAST> ast) {
     classes_.push_back(std::move(ast));
 }
 
+void Parse::ASTContext::addClassTemplate(std::vector<std::pair<std::string, std::string>> arglist, std::unique_ptr<ClassDecl> decl)
+{
+    symbolTable().addClassTemplate(std::move(arglist), std::move(decl));
+}
+
 Parse::Type* Parse::ASTContext::
 addType(const std::string& name, std::vector<std::pair<Type*, std::string>> memberList) {
     auto t = symbol_table_->addType(name, std::move(memberList));
-
-    std::vector<std::pair<std::string, std::string>> members;
-    for (auto& m : t->getMemberVariables()) {
-        members.emplace_back(m.first->mangledName(), m.second);
-    }
-    classes_.push_back(std::make_unique<ClassAST>(t->mangledName(), std::move(members), t));
+    addLLVMType(t);
     return t;
 }
 
@@ -90,4 +92,13 @@ void Parse::ASTContext::unsetCurrentClass() {
 
 std::string Parse::ASTContext::namelessVarName() {
     return "__" + std::to_string(nameless_var_count_++);
+}
+
+void Parse::ASTContext::addLLVMType(CompoundType* t)
+{
+    std::vector<std::pair<std::string, std::string>> members;
+    for (auto& m : t->getMemberVariables()) {
+        members.emplace_back(m.first->mangledName(), m.second);
+    }
+    classes_.push_back(std::make_unique<ClassAST>(t->mangledName(), std::move(members), t));
 }

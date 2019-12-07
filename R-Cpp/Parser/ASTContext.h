@@ -18,6 +18,7 @@ namespace Parse
                                        Type* returnType, bool isExternal = false);
         void setFuncBody(FunctionType* func, std::unique_ptr<BlockExprAST> body);
         LiteralType* addLiteralType(LiteralType::category type, int64_t val);
+        void addClassTemplate(std::vector<std::pair<std::string, std::string>> arglist, std::unique_ptr<ClassDecl> decl);
         std::vector<std::unique_ptr<ClassAST>>* Class();
         std::vector<std::unique_ptr<PrototypeAST>>* Prototype();
         std::vector<std::unique_ptr<FunctionAST>>* Function();
@@ -25,6 +26,7 @@ namespace Parse
         void setCurrentClass(CompoundType* t);
         void unsetCurrentClass();
         std::string namelessVarName();
+        void addLLVMType(CompoundType* t);
 
         struct ClassScopeGuard
         {

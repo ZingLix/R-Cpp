@@ -43,7 +43,7 @@ namespace Parse {
         void ParseExternal();
         void ParseInternal();
         //void ParseUsing();
-        //void ParseTemplateClass();
+        void ParseTemplateClass();
 
         //Class InstantiateTemplate(VarType type, const ClassTemplate& template_);
         void print();
@@ -63,11 +63,9 @@ namespace Parse {
         bool isPostOperator();
 
         Lexer lexer_;
-        //Token cur_token_;
         std::vector<std::unique_ptr<FunctionDecl>> functionDecls_;
         std::vector<std::unique_ptr<ClassDecl>> classDecls_;
-        //std::vector<std::string> cur_namespace_;
-        //VarType cur_class_;
+        std::vector<std::unique_ptr<TemplateClassDecl>> templateClassDecls_;
         bool isExternal;
         ASTContext context_;
     };
