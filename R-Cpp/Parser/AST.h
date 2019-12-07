@@ -235,6 +235,8 @@ namespace Parse
         void registerMemberFunction(ASTContext* context);
         void generateNewFunction(ASTContext* context);
 
+        std::vector<std::pair<Type*, std::string>> memberTypeList(ASTContext* context);
+        void setType(CompoundType* type);
     private:
         std::string name_;
         std::vector<std::pair<std::unique_ptr<Stmt>, std::string>> memberVariables_;
@@ -244,5 +246,17 @@ namespace Parse
         CompoundType* classType_;
     };
 
+    class TemplateClassDecl:public Decl
+    {
+    public:
+        TemplateClassDecl(std::vector<std::pair<std::unique_ptr<TypeStmt>,std::string>> arglist,std::unique_ptr<ClassDecl> c)
+            :template_arg_list_(std::move(arglist)),class_(std::move(c))
+        { }
 
+        void print(std::string indent, bool last) override;
+
+    private:
+        std::vector<std::pair<std::unique_ptr<TypeStmt>, std::string>> template_arg_list_;
+        std::unique_ptr<ClassDecl> class_;
+    };
 }

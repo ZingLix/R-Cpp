@@ -715,3 +715,31 @@ void Parse::ClassDecl::registerMemberFunction(ASTContext* context) {
         destructor_->toLLVM(context);
 }
 
+std::vector<std::pair<Parse::Type*, std::string>> Parse::ClassDecl::memberTypeList(ASTContext* context)
+{
+    std::vector<std::pair<Type*, std::string>> memberList;
+    for (auto& p : memberVariables_) {
+        p.first->toLLVMAST(context);
+        auto type = p.first->getType();
+        memberList.emplace_back(type, p.second);
+    }
+    return memberList;
+}
+
+void Parse::ClassDecl::setType(CompoundType* type)
+{
+    classType_ = type;
+}
+
+void Parse::TemplateClassDecl::print(std::string indent, bool last)
+{
+    std::cout << indent << "+-TemplateClassDecl " << class_->name() << " <";
+    for(auto& p:template_arg_list_)
+    {
+        std::cout << p.first->getName() << " " << p.second;
+        if(p!=template_arg_list_.back()) std::cout << ", ";
+    }
+    std::cout << ">";
+    indent += last ? "  " : "| ";
+    class_->print(indent + "  ", true);
+}

@@ -11,6 +11,7 @@ Lexer::Lexer(const string& filename)
     {
         tokens_.push_back(getNextToken());
     }
+    if (tokens_.back().type != TokenType::Eof) tokens_.push_back(makeToken(TokenType::Eof));
 }
 
 Token Lexer::nextToken()
