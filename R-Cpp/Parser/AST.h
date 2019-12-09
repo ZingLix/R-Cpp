@@ -246,17 +246,4 @@ namespace Parse
         CompoundType* classType_;
     };
 
-    class TemplateClassDecl:public Decl
-    {
-    public:
-        TemplateClassDecl(std::vector<std::pair<std::unique_ptr<TypeStmt>,std::string>> arglist,std::unique_ptr<ClassDecl> c)
-            :template_arg_list_(std::move(arglist)),class_(std::move(c))
-        { }
-
-        void print(std::string indent, bool last) override;
-
-    private:
-        std::vector<std::pair<std::unique_ptr<TypeStmt>, std::string>> template_arg_list_;
-        std::unique_ptr<ClassDecl> class_;
-    };
 }

@@ -40,6 +40,11 @@ class c
 		return a + b;
 	}
 
+	~c()
+	{
+
+	}
+
 	i32 a;
 	i32 b;
 }
@@ -51,6 +56,11 @@ class d
 	{
 		i32 tmp = x.add();
 		return tmp * y;
+	}
+
+	~d()
+	{
+
 	}
 
 	c x;
@@ -113,10 +123,16 @@ fn ptr(i32 a, i32 b) -> i32
 class Template
 {
     T i1;
+	
     fn val() -> i32
     {
         return i1.get();
     }
+
+	~Template()
+	{
+
+	}
 }
 
 class A
@@ -125,6 +141,11 @@ class A
     {
         return 1;
     }
+
+	~A()
+	{
+
+	}
 }
 
 class B
@@ -133,6 +154,11 @@ class B
     {
         return 2;
     }
+
+	~B()
+	{
+
+	}
 }
 
 fn TemplateA() -> i32

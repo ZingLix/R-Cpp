@@ -671,7 +671,8 @@ std::unique_ptr<ClassDecl> Parse::Parser::ParseClass() {
             auto f = ParseFunction();
             classDecl->addMemberFunction(std::move(f));
         } else if (lexer_.curToken().type == TokenType::Tilde) {   // parsing destructor
-            if (getNextToken().type != TokenType::Identifier || lexer_.curToken().content != classDecl->name()) {
+            getNextToken(); //eat ~
+            if (lexer_.curToken().type != TokenType::Identifier || lexer_.curToken().content != classDecl->name()) {
                 error("Expected classname to identify destructor.");
                 return nullptr;
             }
