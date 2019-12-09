@@ -8,6 +8,8 @@ You can consider R-Cpp as Cpp Reborn or Cpp Remake whatever. The final name is n
 
 The main idea is to abandon some bad ideas from C and add some new features. 
 
+You can find some examples in the [test file](https://github.com/ZingLix/R-Cpp/blob/master/test/src.rpp)(all implemented) and my expectations [here](https://github.com/ZingLix/R-Cpp/wiki)(might not be implemented).
+
 ## Differences from C++
 
 What you still will see in R-cpp
