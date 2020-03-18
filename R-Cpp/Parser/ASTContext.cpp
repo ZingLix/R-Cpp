@@ -102,3 +102,52 @@ void Parse::ASTContext::addLLVMType(CompoundType* t)
     }
     classes_.push_back(std::make_unique<ClassAST>(t->mangledName(), std::move(members), t));
 }
+
+std::vector<std::unique_ptr<ExprAST>> Parse::ASTContext::callDestructorsOfScope() {
+    std::vector<std::unique_ptr<ExprAST>> exprlist;
+    auto varlist = symbolTable().getVariableListOfScope();
+    for(auto it=varlist.rbegin();it!=varlist.rend();++it) {
+        auto type = dynamic_cast<CompoundType*>(symbolTable().getVariable(*it)->type_);
+        if(type !=nullptr) {
+            auto s = std::make_unique<CallExprAST>(type->getDestructor()->mangledName(), std::vector<std::unique_ptr<ExprAST>>{}, "void");
+            s->setThis(std::make_unique<VariableExprAST>(*it, type->mangledName()));
+           // BinaryOperatorStmt stmt(std::make_unique<VariableStmt>(*it), std::make_unique<VariableStmt>("__destructor"), OperatorType::FunctionCall);
+            exprlist.push_back(std::move(s));
+        }
+    }
+    return exprlist;
+}
+
+std::vector<std::unique_ptr<ExprAST>> Parse::ASTContext::callNamelessVariablesDestructor() {
+    std::vector<std::unique_ptr<ExprAST>> exprlist;
+    auto& varlist = symbolTable().getNamelessVariableList();
+    for(auto it=varlist.rbegin();it!=varlist.rend();++it) {
+        auto type = dynamic_cast<CompoundType*>((*it)->type_);
+        if (type != nullptr) {
+            auto s = std::make_unique<CallExprAST>(type->getDestructor()->mangledName(), std::vector<std::unique_ptr<ExprAST>>{}, "void");
+            s->setThis(std::make_unique<VariableExprAST>((*it)->name_, type->mangledName()));
+
+            //BinaryOperatorStmt stmt(std::make_unique<VariableStmt>((*it)->name_), std::make_unique<VariableStmt>("__destructor"), OperatorType::FunctionCall);
+            exprlist.push_back(std::move(s));
+        }
+    }
+    symbolTable().clearNamelessVariable();
+    return exprlist;
+}
+
+std::vector<std::unique_ptr<ExprAST>> Parse::ASTContext::callDestructorsOfAll() {
+    std::vector<std::unique_ptr<ExprAST>> exprlist;
+    auto& varlist = symbolTable().getVariableListOfAll();
+    for(auto i=varlist.rbegin();i!=varlist.rend();++i) {
+        for (auto it = i->rbegin(); it != i->rend(); ++it) {
+            auto type = dynamic_cast<CompoundType*>(symbolTable().getVariable(*it)->type_);
+            if (type != nullptr) {
+                auto s = std::make_unique<CallExprAST>(type->getDestructor()->mangledName(), std::vector<std::unique_ptr<ExprAST>>{}, "void");
+                s->setThis(std::make_unique<VariableExprAST>(*it, type->mangledName()));
+                // BinaryOperatorStmt stmt(std::make_unique<VariableStmt>(*it), std::make_unique<VariableStmt>("__destructor"), OperatorType::FunctionCall);
+                exprlist.push_back(std::move(s));
+            }
+        }
+    }
+    return exprlist;
+}

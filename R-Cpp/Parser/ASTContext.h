@@ -27,7 +27,9 @@ namespace Parse
         void unsetCurrentClass();
         std::string namelessVarName();
         void addLLVMType(CompoundType* t);
-
+        std::vector<std::unique_ptr<ExprAST>> callDestructorsOfScope();
+        std::vector<std::unique_ptr<ExprAST>> callNamelessVariablesDestructor();
+        std::vector<std::unique_ptr<ExprAST>> callDestructorsOfAll();
         struct ClassScopeGuard
         {
         public:

@@ -298,14 +298,12 @@ void SymbolTable::unsetAlias(const std::string& name)
 //    return "";
 //}
 
-//void SymbolTable::callDestructorForCurScope(BlockExprAST* block)
-//{
-//    for (auto it = named_values_seq_.back().rbegin(); it != named_values_seq_.back().rend(); ++it) {
-//        auto& v = named_values_.back()[*it];
-//        if (!is_builtin_type(v.type.typeName))
-//            block->instructions().push_back(parser_.callDestructor(v));
-//    }
-//}
+void SymbolTable::callDestructorForCurScope(BlockExprAST* block)
+{
+    auto exprlist = context_.callDestructorsOfScope();
+    block->instructions().insert(block->instructions().end(), std::make_move_iterator(exprlist.begin()),
+        std::make_move_iterator(exprlist.end()));
+}
 
 //std::vector<std::unique_ptr<ExprAST>> SymbolTable::callDestructor()
 //{
@@ -348,8 +346,8 @@ SymbolTable::ScopeGuard::ScopeGuard(SymbolTable& st): st_(st), block_(nullptr)
 
 SymbolTable::ScopeGuard::~ScopeGuard()
 {
-   // if (block_ != nullptr)
-        //st_.callDestructorForCurScope(block_);
+    if (block_ != nullptr)
+        st_.callDestructorForCurScope(block_);
     st_.destroyScope();
 }
 
@@ -366,4 +364,20 @@ SymbolTable::NamespaceGuard::NamespaceGuard(SymbolTable& st, const std::string& 
 SymbolTable::NamespaceGuard::~NamespaceGuard()
 {
     st_.destroyNamespace();
+}
+
+std::vector<std::string> SymbolTable::getVariableListOfScope() {
+    return named_values_seq_.back();
+}
+
+const std::vector<std::unique_ptr<Variable>>& SymbolTable::getNamelessVariableList() {
+    return nameless_values_;
+}
+
+void SymbolTable::clearNamelessVariable() {
+    nameless_values_.clear();
+}
+
+const std::vector<std::vector<std::string>>& SymbolTable::getVariableListOfAll() {
+    return named_values_seq_;
 }

@@ -80,8 +80,16 @@ std::unique_ptr<BlockExprAST> Parse::CompoundStmt::toBlockExprAST(ASTContext* co
     for(auto&v:stmts_)
     {
         auto e = v->toLLVMAST(context);
-        if (dynamic_cast<ReturnAST*>(e.get())) hasReturn = true;
+        auto p = dynamic_cast<ReturnAST*>(e.get());
+        if (p) hasReturn = true;
         exprs.push_back(std::move(e));
+        if(!p) {
+            auto namelessVarDestructor = context->callNamelessVariablesDestructor();
+            exprs.insert(exprs.end(), std::make_move_iterator(namelessVarDestructor.begin()),
+                std::make_move_iterator(namelessVarDestructor.end()));
+        }else {
+            context->symbolTable().clearNamelessVariable();
+        }
     }
     return std::make_unique<BlockExprAST>(std::move(exprs), hasReturn);
 }
@@ -116,8 +124,19 @@ std::string Parse::IfStmt::dumpToXML() const {
 
 std::unique_ptr<ExprAST> Parse::IfStmt::toLLVMAST(ASTContext* context)
 {
-    return std::make_unique<IfExprAST>(cond_->toLLVMAST(context), then_->toBlockExprAST(context),
-        else_->toBlockExprAST(context));
+    auto cond = cond_->toLLVMAST(context);
+    std::unique_ptr<BlockExprAST> then, els;
+    {
+        SymbolTable::ScopeGuard guard(context->symbolTable());
+        then = then_->toBlockExprAST(context);
+        guard.setBlock(then.get());
+    }
+    {
+        SymbolTable::ScopeGuard guard(context->symbolTable());
+        els = else_->toBlockExprAST(context);
+        guard.setBlock(els.get());
+    }
+    return std::make_unique<IfExprAST>(std::move(cond),std::move(then),std::move(els));
 }
 
 Parse::ForStmt::ForStmt(std::unique_ptr<Stmt> start, std::unique_ptr<Stmt> cond, std::unique_ptr<Stmt> end,
@@ -151,10 +170,12 @@ std::string Parse::ForStmt::dumpToXML() const {
 
 std::unique_ptr<ExprAST> Parse::ForStmt::toLLVMAST(ASTContext* context)
 {
+    SymbolTable::ScopeGuard guard(context->symbolTable());
     auto start = start_->toLLVMAST(context);
     auto cond = cond_->toLLVMAST(context);
     auto end = end_->toLLVMAST(context);
     auto body = body_->toBlockExprAST(context);
+    guard.setBlock(body.get());
     return std::make_unique<ForExprAST>(std::move(start), std::move(cond),
         end_->toLLVMAST(context), std::move(body));
 }
@@ -177,7 +198,7 @@ std::string Parse::ReturnStmt::dumpToXML() const {
 
 std::unique_ptr<ExprAST> Parse::ReturnStmt::toLLVMAST(ASTContext* context)
 {
-    return std::make_unique<ReturnAST>(ret_val_->toLLVMAST(context), std::vector<std::unique_ptr<ExprAST>>{});
+    return std::make_unique<ReturnAST>(ret_val_->toLLVMAST(context), context->callDestructorsOfAll());
 }
 
 Parse::BinaryOperatorStmt::
@@ -729,17 +750,4 @@ std::vector<std::pair<Parse::Type*, std::string>> Parse::ClassDecl::memberTypeLi
 void Parse::ClassDecl::setType(CompoundType* type)
 {
     classType_ = type;
-}
-
-void Parse::TemplateClassDecl::print(std::string indent, bool last)
-{
-    std::cout << indent << "+-TemplateClassDecl " << class_->name() << " <";
-    for(auto& p:template_arg_list_)
-    {
-        std::cout << p.first->getName() << " " << p.second;
-        if(p!=template_arg_list_.back()) std::cout << ", ";
-    }
-    std::cout << ">";
-    indent += last ? "  " : "| ";
-    class_->print(indent + "  ", true);
 }
