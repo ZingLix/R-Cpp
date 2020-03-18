@@ -8,17 +8,20 @@ matrix:
       compiler: clang
       addons:
         apt:
-          sources: ['ubuntu-toolchain-r-test', 'llvm-toolchain-bionic-10']
+          sources: ['ubuntu-toolchain-r-test']
           packages: ['g++-8']
       env:
-        - CXX=clang++-8
-        - COMPILER=clang++-8
-        - MATRIX_EVAL="CC=clang-8 && CXX=clang++-8"
+        - CXX=clang++-10
+        - COMPILER=clang++-10
+        - MATRIX_EVAL="CC=clang-10 && CXX=clang++-10"
 
 
 install:
  - eval "${MATRIX_EVAL}"
- - sudo apt-get -qq update
+ - echo "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee /etc/apt/sources.list
+ - echo "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main" | sudo tee /etc/apt/sources.list
+ - wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
+ - sudo apt-get update
  - sudo apt-get install -y libgtest-dev cmake libllvm-10-ocaml-dev libllvm10 llvm-10 llvm-10-dev llvm-10-doc llvm-10-examples llvm-10-runtime
  - sudo apt-get install clang-10 clang-tools-10 clang-10-doc libclang-common-10-dev libclang-10-dev libclang1-10 clang-format-10 clangd-10
  - cd "${TRAVIS_BUILD_DIR}"
