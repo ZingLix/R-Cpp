@@ -29,7 +29,7 @@ What's new
 
 ## Installation
 
-CMake and [LLVM-8](http://releases.llvm.org/download.html#8.0.0) are required. 
+CMake and LLVM-10 are required. 
 
 ```
 cmake .
