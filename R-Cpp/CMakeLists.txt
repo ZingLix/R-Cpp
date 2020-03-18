@@ -12,5 +12,5 @@ add_subdirectory( "Lexer" )
 add_subdirectory("Parser" )
 add_subdirectory("Util")
 add_executable(R-Cpp ${src})
-target_link_libraries(R-Cpp CodeGenerator Lexer Parser Util LLVM-8)
+target_link_libraries(R-Cpp CodeGenerator Lexer Parser Util LLVM-10)
 # TODO: Add tests and install targets if needed.

@@ -15,6 +15,13 @@ namespace Parse {
             isExternal(false),nameless_var_count_(0)*/ {
         }
 
+        void print();
+        void dumpToXML(const std::string& filename = "ast.xml");
+        void convertToLLVM();
+        ASTContext& context();
+        void MainLoop();
+
+    private:
         std::unique_ptr<Stmt> ParsePrimary();
         std::unique_ptr<Stmt> ParseStatement();
         std::unique_ptr<Stmt> ParseIntegerExpr();
@@ -38,21 +45,12 @@ namespace Parse {
         std::vector<std::pair<std::unique_ptr<Stmt>, std::string>> ParseFunctionArgList();
         void HandleDefinition();
         void HandleClass();
-        void MainLoop();
 
         void ParseExternal();
         void ParseInternal();
         //void ParseUsing();
         void ParseTemplateClass();
 
-        //Class InstantiateTemplate(VarType type, const ClassTemplate& template_);
-        void print();
-        void dumpToXML(const std::string& filename = "ast.xml");
-        void convertToLLVM();
-        ASTContext& context();
-        //std::unique_ptr<Stmt> callDestructor(const Variable& var);
-        
-    private:
         Token& getNextToken();
         OperatorType getNextBinOperator();
         OperatorType getNextUnaryOperator();
@@ -60,14 +58,13 @@ namespace Parse {
         std::unique_ptr<Stmt> MergeExpr(std::unique_ptr<Stmt>, std::unique_ptr<Stmt>, OperatorType);
         std::vector<std::unique_ptr<Stmt>> ParseExprList(TokenType endToken);
         std::unique_ptr<Stmt> ParseType();
-        void generateNewForClass(Type* type);
+        void generateNewForClass(Type* type); 
         //void generateDestructor(Class&c, std::unique_ptr<BlockExprAST> block);
         bool isPostOperator();
 
         Lexer lexer_;
         std::vector<std::unique_ptr<FunctionDecl>> functionDecls_;
         std::vector<std::unique_ptr<ClassDecl>> classDecls_;
-        std::vector<std::unique_ptr<TemplateClassDecl>> templateClassDecls_;
         bool isExternal;
         ASTContext context_;
     };

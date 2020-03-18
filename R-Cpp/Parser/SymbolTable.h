@@ -89,6 +89,10 @@ namespace Parse {
         }
         void setSpecfiedNamespace(NamespaceHelper* ns);
         void unsetSpecfiedNamespace();
+        std::vector<std::string> getVariableListOfScope();
+        const std::vector<std::vector<std::string>>& getVariableListOfAll();
+        const std::vector<std::unique_ptr<Variable>>& getNamelessVariableList();
+        void clearNamelessVariable();
 
         class ScopeGuard
         {
@@ -115,7 +119,7 @@ namespace Parse {
     private:
         const std::vector<std::unique_ptr<FunctionType>>* getRawFunction_(const std::string& name, const std::vector<std::string>& ns_hierarchy, NamespaceHelper* ns);
         //ClassTemplate getClassTemplate_(std::string name, NamespaceHelper* ns);
-        //void callDestructorForCurScope(BlockExprAST* block);
+        void callDestructorForCurScope(BlockExprAST* block);
 
         ASTContext& context_;
         std::vector<std::map<std::string, std::unique_ptr<Variable>>> named_values_;

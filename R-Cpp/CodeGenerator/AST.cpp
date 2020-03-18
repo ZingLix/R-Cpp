@@ -100,19 +100,19 @@ llvm::Value* VariableDefAST::generateCode(CodeGenerator& cg) {
     else
     {
         auto type = cg.symbol().getType(type_);
-        if(init_value_&& dynamic_cast<NamelessVarExprAST*>(init_value_.get()))
-        {
-            init_value_->generateCode(cg);
-            alloc = dynamic_cast<NamelessVarExprAST*>(init_value_.get())->getAlloc();
-        }else
-        {
+        //if(init_value_&& dynamic_cast<NamelessVarExprAST*>(init_value_.get()))
+        //{
+        //    init_value_->generateCode(cg);
+        //    alloc = dynamic_cast<NamelessVarExprAST*>(init_value_.get())->getAlloc();
+        //}else
+        //{
             alloc = cg.builder().CreateAlloca(type, nullptr, varname_);
             if (init_value_) {
                 auto InitVal = init_value_->generateCode(cg);
                 if (!InitVal) return nullptr;
                 cg.builder().CreateStore(InitVal, alloc);
             }
-        }
+        //}
 
     }
     cg.symbol().setAlloc(varname_, alloc);
@@ -172,7 +172,8 @@ Value* ReturnAST::generateCode(CodeGenerator& cg) {
     if (ret_val_ != nullptr)
     {
         retval = ret_val_->generateCode(cg);
-        if (!retval) return nullptr;
+        if (!retval) 
+            return nullptr;
     }
     for (auto& expr : destructor_expr_)
         expr->generateCode(cg);
@@ -495,6 +496,8 @@ llvm::Value* UnaryExprAST::generateCode(CodeGenerator& cg)
     {
         alloca_ = static_cast<AllocaInst*>(var);
         return cg.builder().CreateLoad(var);
+    }else if(op==OperatorType::BitwiseAND) {
+        return var;
     }
     LogError("Unknown unary operator.");
     return nullptr;
